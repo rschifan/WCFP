@@ -1,12 +1,13 @@
-# Explorer
+# World Checklist of Food Plants (WCFP) Explorer
 
-A SvelteKit application for exploring and visualizing species taxonomy and distribution data.
+A SvelteKit application for exploring and visualizing the World Checklist of Food Plants (WCFP) - an interactive platform for browsing species taxonomy, geographic distribution, and food plant data.
 
 ## Features
 
-- Interactive taxonomy tree visualization
-- Species distribution mapping
-- Geographic data exploration
+- Interactive taxonomy tree visualization for food plants
+- Species distribution mapping using WCFP data
+- Geographic data exploration with TDWG regions
+- Food plant use categories and characteristics
 - Responsive design with modern UI
 
 ## Development Setup
@@ -37,10 +38,10 @@ A SvelteKit application for exploring and visualizing species taxonomy and distr
 
 4. **Obtain source data files** (required for preprocessing):
    
-   The preprocessing scripts require the following source data files in the `data/` directory:
+   The preprocessing scripts require the following WCFP source data files in the `data/` directory:
    - `data/1.geo_distr_taxa.csv` (55 MB) - Species geographic distribution data
-   - `data/3.WCFP.xlsx` - WCFP species data
-   - `data/wgsrpd-master/` - Geographic region data (optional)
+   - `data/3.WCFP.xlsx` - World Checklist of Food Plants (WCFP) species data
+   - `data/wgsrpd-master/` - TDWG geographic region data (optional)
    
    **Note**: These files are excluded from git due to their size. You need to obtain them separately:
    - From a team shared location
@@ -72,7 +73,7 @@ A SvelteKit application for exploring and visualizing species taxonomy and distr
 - `pnpm check` - Run TypeScript type checking
 - `pnpm test` - Run tests
 - `pnpm format` - Format code with Prettier
-- `pnpm preprocess:species` - Generate species data files from source CSV/XLSX
+- `pnpm preprocess:species` - Generate WCFP species data files from source CSV/XLSX
 
 ## Building for Production
 
@@ -167,17 +168,17 @@ explorer/
 
 ## Source Data Files
 
-The application uses preprocessing scripts to transform large source data files into optimized JSON files. These source files are **not** included in the repository due to their size:
+The WCFP Explorer uses preprocessing scripts to transform large source data files into optimized JSON files. These WCFP source files are **not** included in the repository due to their size:
 
-- Large CSV files (>50MB)
-- Excel files (XLSX)
-- Geographic data files (MBTiles, GeoJSON)
-- Shapefiles
+- Large CSV files (>50MB) - Geographic distribution data
+- Excel files (XLSX) - WCFP species data with taxonomy and use information
+- Geographic data files (MBTiles, GeoJSON) - TDWG region boundaries
+- Shapefiles - Geographic region data
 
-**To obtain source data files:**
-1. Contact the project maintainer
+**To obtain WCFP source data files:**
+1. Contact the WCFP project maintainer
 2. Check team shared storage
-3. Download from the original data source
+3. Download from the original WCFP data source
 4. Place files in the `data/` directory before running preprocessing scripts
 
 ## Contributing

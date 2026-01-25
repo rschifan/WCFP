@@ -61,6 +61,9 @@
 		autoFitBounds = true
 	}: Props = $props();
 
+	// Gray color for regions with no data
+	const NO_DATA_COLOR = '#d1d5db'; // Tailwind gray-300
+
 	// State
 	let mapInstance = $state<MapLibreMapType | null>(null);
 	let tooltip = $state<{ x: number; y: number; name: string; count: number } | null>(null);
@@ -268,7 +271,8 @@
 		// 1. min === max: use a single color
 		// 2. max - min < 2: use two-stop interpolation (min and max only)
 		// 3. Otherwise: use three-stop interpolation (min, mid, max)
-		const fillColorExpression: any =
+		// Regions with no data (unique_count = 0) are colored gray
+		const dataColorExpression: any =
 			min === max
 				? colors.mid // All regions have the same count
 				: max - min < 2 || mid === min || mid === max
@@ -295,6 +299,14 @@
 							colors.high
 						];
 
+		// Wrap in case expression: gray for no data, color scale for data
+		const fillColorExpression: any = [
+			'case',
+			['>', ['coalesce', ['get', 'unique_count'], 0], 0],
+			dataColorExpression,
+			NO_DATA_COLOR
+		];
+
 		// Add fill layer with color scale
 		mapInstance.addLayer({
 			id: 'level3-fill',
@@ -318,7 +330,7 @@
 			}
 		});
 
-		// Add hover highlight layer
+		// Add hover highlight layer (only for regions with data)
 		mapInstance.addLayer({
 			id: 'level3-hover',
 			type: 'line',
@@ -326,7 +338,16 @@
 			paint: {
 				'line-color': hoverColor,
 				'line-width': 3,
-				'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0]
+				'line-opacity': [
+					'case',
+					[
+						'all',
+						['boolean', ['feature-state', 'hover'], false],
+						['>', ['coalesce', ['get', 'unique_count'], 0], 0]
+					],
+					1,
+					0
+				]
 			}
 		});
 
@@ -382,10 +403,27 @@
 		// Add hover effects
 		mapInstance.on('mousemove', 'level3-fill', (e: any) => {
 			if (!mapInstance) return;
-			mapInstance.getCanvas().style.cursor = 'pointer';
 
 			if (e.features?.[0]) {
 				const feature = e.features[0];
+				const count = feature.properties?.unique_count || 0;
+
+				// Skip hover effects for regions with no data
+				if (count === 0) {
+					mapInstance.getCanvas().style.cursor = '';
+					tooltip = null;
+					// Clear any existing hover state
+					if (hoveredFeatureId !== null) {
+						mapInstance.setFeatureState(
+							{ source: 'level3', id: hoveredFeatureId },
+							{ hover: false }
+						);
+						hoveredFeatureId = null;
+					}
+					return;
+				}
+
+				mapInstance.getCanvas().style.cursor = 'pointer';
 				const newFeatureId = feature.id;
 
 				// Update hover state if feature changed
@@ -404,7 +442,6 @@
 
 				// Update tooltip
 				const regionName = feature.properties?.LEVEL3_NAM || 'Unknown';
-				const count = feature.properties?.unique_count || 0;
 				tooltip = {
 					x: e.point.x,
 					y: e.point.y,
@@ -426,9 +463,11 @@
 			}
 		});
 
-		// Handle click to trigger region selection
+		// Handle click to trigger region selection (only for regions with data)
 		mapInstance.on('click', 'level3-fill', (e: any) => {
 			if (e.features?.[0] && onRegionClick) {
+				const count = e.features[0].properties?.unique_count || 0;
+				if (count === 0) return; // Ignore clicks on no-data regions
 				const regionName = e.features[0].properties?.LEVEL3_NAM;
 				if (regionName) {
 					onRegionClick(regionName);

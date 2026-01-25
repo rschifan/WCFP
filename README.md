@@ -93,12 +93,12 @@ The project includes automated CI/CD pipelines:
   - Tests code quality (lint, type check)
   - Runs test suite
   - Builds the project
-  - [![CI](https://github.com/YOUR_USERNAME/YOUR_REPO/workflows/CI/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml)
+  - [![CI](https://github.com/rschifan/WCFP/workflows/CI/badge.svg)](https://github.com/rschifan/WCFP/actions/workflows/ci.yml)
 
 - **Deploy Pipeline**: Runs on push to `main` branch
   - Builds the project
   - Deploys via SFTP/SSH to the web server
-  - [![Deploy](https://github.com/YOUR_USERNAME/YOUR_REPO/workflows/Deploy/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/deploy.yml)
+  - [![Deploy](https://github.com/rschifan/WCFP/workflows/Deploy/badge.svg)](https://github.com/rschifan/WCFP/actions/workflows/deploy.yml)
 
 ### Setting Up Automated Deployment
 

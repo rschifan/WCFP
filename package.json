@@ -4,6 +4,7 @@
 	"version": "0.0.1",
 	"description": "World Checklist of Food Plants (WCFP) - Interactive platform for browsing food plant taxonomy and distribution data",
 	"type": "module",
+	"packageManager": "pnpm@9.15.3",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",

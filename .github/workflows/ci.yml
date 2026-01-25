@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   ci:
-    name: Test, Lint, and Build
+    name: Test, Type Check, and Build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

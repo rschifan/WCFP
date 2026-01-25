@@ -64,6 +64,19 @@ jobs:
         run: pnpm build
         continue-on-error: false
 
+      - name: Validate SSH key format
+        run: |
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "Error: SSH_PRIVATE_KEY secret is empty or not set"
+            exit 1
+          fi
+          # Check if key starts with BEGIN marker
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" | head -1 | grep -q "BEGIN.*PRIVATE KEY" || {
+            echo "Error: SSH key does not start with BEGIN marker. Make sure you're using the PRIVATE key, not the public key."
+            exit 1
+          }
+          echo "SSH key format appears valid"
+
       - name: Load SSH key into agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -71,7 +84,15 @@ jobs:
 
       - name: Verify SSH key is loaded
         run: |
-          ssh-add -l || echo "Warning: No keys in agent"
+          ssh-add -l || {
+            echo "Error: Failed to load SSH key into agent"
+            echo "Troubleshooting:"
+            echo "1. Verify SSH_PRIVATE_KEY secret contains the full private key (including BEGIN/END lines)"
+            echo "2. Ensure the key has no passphrase"
+            echo "3. Check that you copied the PRIVATE key (not the .pub file)"
+            exit 1
+          }
+          echo "SSH key successfully loaded"
 
       - name: Add server to known hosts
         run: |

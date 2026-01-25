@@ -108,15 +108,34 @@ The project includes automated CI/CD pipelines:
 ### Setting Up Automated Deployment
 
 1. **Prepare SSH Key**:
-   - Generate an SSH key pair (if you don't have one):
+   - Generate an SSH key pair **without a passphrase** (required for CI/CD):
      ```bash
-     ssh-keygen -t ed25519 -C "github-actions" -f ~/.ssh/deploy_key
+     ssh-keygen -t ed25519 -a 100 -C "github-actions-deploy" -f ~/.ssh/deploy_key -N ""
      ```
+     - `-t ed25519`: Use Ed25519 algorithm (recommended, more secure)
+     - `-a 100`: Number of KDF rounds (security hardening)
+     - `-N ""`: Empty passphrase (required for automated workflows)
+     - `-f ~/.ssh/deploy_key`: Output file path
+   
    - Add the **public key** to your server's `~/.ssh/authorized_keys`:
      ```bash
      ssh-copy-id -i ~/.ssh/deploy_key.pub user@your-server.com
      ```
-   - Copy the **private key** content (entire key including headers)
+     Or manually:
+     ```bash
+     cat ~/.ssh/deploy_key.pub | ssh user@your-server.com "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+     ```
+   
+   - Copy the **private key** content to GitHub Secrets:
+     ```bash
+     cat ~/.ssh/deploy_key
+     ```
+     - Copy the **entire output**, including:
+       - `-----BEGIN OPENSSH PRIVATE KEY-----` (or `-----BEGIN RSA PRIVATE KEY-----`)
+       - All lines of the key
+       - `-----END OPENSSH PRIVATE KEY-----` (or `-----END RSA PRIVATE KEY-----`)
+     - **Important**: Make sure you're copying the PRIVATE key (not the `.pub` file)
+     - Ensure no extra spaces or line breaks are added
 
 2. **Configure GitHub Secrets**:
    - Go to your repository on GitHub

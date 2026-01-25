@@ -1,0 +1,62 @@
+# Dependencies
+node_modules
+
+# Build output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# Large source data files (excluded to keep repo size manageable)
+# These files are required for preprocessing but should be obtained separately
+data/*.csv
+data/*.xlsx
+data/*.mbtiles
+data/*.geojson
+data/*.zip
+data/wgsrpd-master/
+data/*.shp
+data/*.shx
+data/*.dbf
+data/*.pptx
+data/*.pdf
+data/~$*
+data/*.webloc
+*.mbtiles
+
+# IDE/Editor files
+.cursor/
+.idea/
+.vscode-test/
+
+# Generated files (if not committing them - uncomment if generating during CI/CD)
+# static/data/
+
+# Test & Coverage
+coverage/
+.nyc_output/
+*.log
+*.log.*
+.test-output/
+playwright-report/
+
+# OS & Temporary files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.tmp
+*.temp
+
+# Environment variables
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*

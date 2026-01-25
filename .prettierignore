@@ -1,0 +1,11 @@
+# Package Managers (lock files should be committed, but not formatted)
+package-lock.json
+yarn.lock
+bun.lock
+bun.lockb
+
+# Note: pnpm-lock.yaml should be committed and formatted
+# Removing it from this ignore list
+
+# Miscellaneous
+/static/

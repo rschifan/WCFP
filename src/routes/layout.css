@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* Skeleton UI base styles + theme */
+@import '@skeletonlabs/skeleton';
+@import '@skeletonlabs/skeleton/themes/cerberus';
+
+/* Skeleton UI component styles (Svelte) */
+@import '@skeletonlabs/skeleton-svelte';
+
+/* Skeleton best practice: Ensure html and body extend to full viewport height */
+html,
+body {
+	@apply h-full;
+}
+
+/* Body background is automatically set by Skeleton's @base layer via --body-background-color */
+/* No explicit background needed - Skeleton handles this automatically */

@@ -79,24 +79,33 @@ jobs:
           fi
           echo "SSH key file created successfully"
 
+      - name: Verify build output
+        run: |
+          echo "Build directory contents:"
+          ls -la build/ || echo "Build directory not found!"
+          echo ""
+          echo "Looking for index.html:"
+          find build -name "index.html" -o -name "*.html" | head -10
+
       - name: Add server to known hosts
         run: |
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Add server to known hosts
+      - name: Test SSH connection
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
+            "echo 'SSH connection successful' && pwd && ls -la ${{ secrets.SSH_REMOTE_PATH }} || echo 'Remote path does not exist'"
 
       - name: Deploy via rsync (using SSH key file)
         run: |
-          rsync -avz --delete \
+          echo "Deploying from build/ to ${{ secrets.SSH_REMOTE_PATH }}"
+          rsync -avz --delete --verbose \
             -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no" \
             build/ \
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_REMOTE_PATH }}/
+          echo "Deployment completed"
 
       - name: Cleanup SSH key
         if: always()

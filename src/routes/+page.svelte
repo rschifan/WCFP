@@ -13,6 +13,9 @@
 	const COLOR_HIGH = '#00897b';
 	const HOVER_COLOR = '#14532d';
 
+	// Mobile breakpoint
+	const MOBILE_BREAKPOINT = 768;
+
 	// Initialize species provider and set in context
 	const speciesProvider = createSpeciesProvider();
 	setSpeciesProvider(speciesProvider);
@@ -22,6 +25,11 @@
 	let loadError = $state<string | null>(null);
 	let loading = $state(true);
 	let selectedRegion = $state<string | null>(null);
+	let containerWidth = $state(0);
+	let containerEl = $state<HTMLElement | null>(null);
+
+	// Derived: is mobile based on container width
+	let isMobile = $derived(containerWidth < MOBILE_BREAKPOINT);
 
 	// Load GeoJSON on mount
 	onMount(async () => {
@@ -38,6 +46,21 @@
 		}
 	});
 
+	// ResizeObserver for container width
+	$effect(() => {
+		if (!containerEl) return;
+
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				containerWidth = entry.contentRect.width;
+			}
+		});
+
+		observer.observe(containerEl);
+
+		return () => observer.disconnect();
+	});
+
 	// Handle region click to show species panel
 	function handleRegionClick(regionName: string) {
 		selectedRegion = regionName;
@@ -48,7 +71,11 @@
 	<header class="shrink-0">
 		<TopBar />
 	</header>
-	<main class="relative min-h-0 flex-1 overflow-hidden">
+	<main
+		bind:this={containerEl}
+		class="relative min-h-0 flex-1 overflow-hidden"
+		class:flex={!isMobile && selectedRegion}
+	>
 		{#if loadError}
 			<div class="flex h-full items-center justify-center">
 				<div class="bg-error-500-900 text-on-error-token card rounded-lg p-6 shadow-lg">
@@ -73,19 +100,22 @@
 				</div>
 			</div>
 		{:else if geoJSONData}
-			<ChoroplethMap
-				geoJSON={geoJSONData}
-				distributionData={new Map()}
-				colors={{ low: COLOR_LOW, mid: COLOR_MID, high: COLOR_HIGH }}
-				hoverColor={HOVER_COLOR}
-				onRegionClick={handleRegionClick}
-				legendTitle="Count"
-				legendSubtitle="Food plant species"
-				autoFitBounds={false}
-			/>
+			<!-- Species Panel - renders as flex sibling on desktop (left side), overlay on mobile -->
+			<SpeciesPanel {selectedRegion} {isMobile} onClose={() => (selectedRegion = null)} />
 
-			<!-- Species Panel -->
-			<SpeciesPanel {selectedRegion} onClose={() => (selectedRegion = null)} />
+			<!-- Map Container - flex-1 to take remaining space when panel is open (desktop) -->
+			<div class="relative h-full min-w-0 flex-1">
+				<ChoroplethMap
+					geoJSON={geoJSONData}
+					distributionData={new Map()}
+					colors={{ low: COLOR_LOW, mid: COLOR_MID, high: COLOR_HIGH }}
+					hoverColor={HOVER_COLOR}
+					onRegionClick={handleRegionClick}
+					legendTitle="Count"
+					legendSubtitle="Food plant species"
+					autoFitBounds={false}
+				/>
+			</div>
 		{/if}
 	</main>
 	<footer class="shrink-0">

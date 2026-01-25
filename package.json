@@ -1,7 +1,8 @@
 {
-	"name": "explorer",
+	"name": "wcfp-explorer",
 	"private": true,
 	"version": "0.0.1",
+	"description": "World Checklist of Food Plants (WCFP) Explorer - Interactive platform for browsing food plant taxonomy and distribution data",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",

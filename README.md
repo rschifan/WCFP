@@ -1,4 +1,4 @@
-# World Checklist of Food Plants (WCFP) Explorer
+# World Checklist of Food Plants (WCFP)
 
 A SvelteKit application for exploring and visualizing the World Checklist of Food Plants (WCFP) - an interactive platform for browsing species taxonomy, geographic distribution, and food plant data.
 
@@ -168,7 +168,7 @@ explorer/
 
 ## Source Data Files
 
-The WCFP Explorer uses preprocessing scripts to transform large source data files into optimized JSON files. These WCFP source files are **not** included in the repository due to their size:
+The WCFP application uses preprocessing scripts to transform large source data files into optimized JSON files. These WCFP source files are **not** included in the repository due to their size:
 
 - Large CSV files (>50MB) - Geographic distribution data
 - Excel files (XLSX) - WCFP species data with taxonomy and use information

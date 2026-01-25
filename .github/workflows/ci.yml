@@ -75,8 +75,9 @@ jobs:
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
-        if: always()
+        if: success()
         with:
           name: build-artifacts
           path: build/
           retention-days: 7
+          if-no-files-found: ignore

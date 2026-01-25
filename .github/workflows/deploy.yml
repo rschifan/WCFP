@@ -68,11 +68,17 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-        continue-on-error: false
+
+      - name: Verify SSH key is loaded
+        run: |
+          ssh-add -l || echo "Warning: No keys in agent"
 
       - name: Add server to known hosts
         run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy via rsync (using SSH agent)
         run: |

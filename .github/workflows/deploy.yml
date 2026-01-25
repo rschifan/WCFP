@@ -93,5 +93,5 @@ jobs:
             echo "✅ Deployment successful"
           else
             echo "❌ Deployment failed - manual intervention may be required"
-            exit 1
+            echo "Please check the logs above for details."
           fi

@@ -37,8 +37,10 @@
 				<Portal>
 					<Dialog.Backdrop class="fixed inset-0 z-50 bg-surface-50-950/50 {animBackdrop}" />
 					<Dialog.Positioner class="fixed inset-0 z-50 flex justify-start">
-						<Dialog.Content class="h-screen card bg-surface-100-900 w-sm p-4 space-y-4 shadow-xl {animModal}">
-							<header class="flex justify-between items-center">
+						<Dialog.Content
+							class="h-screen w-sm space-y-4 card bg-surface-100-900 p-4 shadow-xl {animModal}"
+						>
+							<header class="flex items-center justify-between">
 								<Dialog.Title class="text-2xl font-bold">Menu</Dialog.Title>
 								<Dialog.CloseTrigger class="btn-icon preset-tonal">
 									<X class="h-4 w-4" />
@@ -52,8 +54,8 @@
 										data-sveltekit-preload-data="hover"
 										class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
 											{active
-												? 'bg-surface-active-token text-[#80cbc4]'
-												: 'text-on-surface-token hover:bg-surface-hover-token'}"
+											? 'bg-surface-active-token text-[#80cbc4]'
+											: 'text-on-surface-token hover:bg-surface-hover-token'}"
 										aria-current={active ? 'page' : undefined}
 									>
 										<Icon class="h-4 w-4" aria-hidden="true" />
@@ -70,13 +72,13 @@
 			<a
 				href="/"
 				data-sveltekit-preload-data="hover"
-				class="text-2xl font-semibold hover:opacity-80 transition-opacity"
+				class="text-2xl font-semibold transition-opacity hover:opacity-80"
 			>
 				<span class="md:hidden">WCFP</span>
 				<span class="hidden md:inline">World Checklist of Food Plants</span>
 			</a>
 		</AppBar.Headline>
-		<AppBar.Trail class="hidden md:flex items-center gap-1">
+		<AppBar.Trail class="hidden items-center gap-1 md:flex">
 			{#each navItems as { href, label, icon: Icon } (href)}
 				{@const active = isActive(href)}
 				<a
@@ -84,8 +86,8 @@
 					data-sveltekit-preload-data="hover"
 					class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
 						{active
-							? 'bg-surface-active-token text-[#80cbc4]'
-							: 'text-on-surface-token hover:bg-surface-hover-token'}"
+						? 'bg-surface-active-token text-[#80cbc4]'
+						: 'text-on-surface-token hover:bg-surface-hover-token'}"
 					aria-current={active ? 'page' : undefined}
 				>
 					<Icon class="h-4 w-4" aria-hidden="true" />

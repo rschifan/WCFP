@@ -51,12 +51,12 @@
 	<main class="relative min-h-0 flex-1 overflow-hidden">
 		{#if loadError}
 			<div class="flex h-full items-center justify-center">
-				<div class="card rounded-lg bg-error-500-900 p-6 text-on-error-token shadow-lg">
+				<div class="bg-error-500-900 text-on-error-token card rounded-lg p-6 shadow-lg">
 					<p class="font-semibold">Failed to load GeoJSON data</p>
 					<p class="mt-2 text-sm">{loadError}</p>
 					<button
 						type="button"
-						class="btn mt-4 preset-filled-error"
+						class="preset-filled-error mt-4 btn"
 						onclick={() => window.location.reload()}
 					>
 						Retry
@@ -65,7 +65,7 @@
 			</div>
 		{:else if loading}
 			<div class="flex h-full items-center justify-center">
-				<div class="flex items-center gap-3 text-on-surface-token">
+				<div class="text-on-surface-token flex items-center gap-3">
 					<span
 						class="h-6 w-6 animate-spin rounded-full border-2 border-surface-300-700 border-t-primary-500"
 					></span>
@@ -85,7 +85,7 @@
 			/>
 
 			<!-- Species Panel -->
-			<SpeciesPanel selectedRegion={selectedRegion} onClose={() => (selectedRegion = null)} />
+			<SpeciesPanel {selectedRegion} onClose={() => (selectedRegion = null)} />
 		{/if}
 	</main>
 	<footer class="shrink-0">

@@ -31,7 +31,10 @@
 	import type { Map as MapLibreMapType, MapOptions as MapLibreMapOptions } from 'maplibre-gl';
 	import type { MapboxOverlay } from '@deck.gl/mapbox';
 	import type { MapProps, ViewState } from '../types/map';
-	import { DEFAULT_MAP_STYLE as DEFAULT_STYLE, DEFAULT_VIEW_STATE as DEFAULT_VIEW } from '../types/map';
+	import {
+		DEFAULT_MAP_STYLE as DEFAULT_STYLE,
+		DEFAULT_VIEW_STATE as DEFAULT_VIEW
+	} from '../types/map';
 
 	// Props (reactive by default in Svelte 5)
 	let {
@@ -226,11 +229,11 @@
 			const latitude = finiteOr(view.latitude, DEFAULT_VIEW.latitude);
 			const zoom = finiteOr(view.zoom, DEFAULT_VIEW.zoom);
 			const bearing =
-				typeof view.bearing === 'number' && Number.isFinite(view.bearing) ? view.bearing
+				typeof view.bearing === 'number' && Number.isFinite(view.bearing)
+					? view.bearing
 					: undefined;
 			const pitch =
-				typeof view.pitch === 'number' && Number.isFinite(view.pitch) ? view.pitch
-					: undefined;
+				typeof view.pitch === 'number' && Number.isFinite(view.pitch) ? view.pitch : undefined;
 
 			const options: MapLibreMapOptions = {
 				container,
@@ -348,7 +351,8 @@
 				currentViewState.bearing !== undefined &&
 				Math.abs(currentBearing - currentViewState.bearing) > 0.01;
 			const pitchChanged =
-				currentViewState.pitch !== undefined && Math.abs(currentPitch - currentViewState.pitch) > 0.01;
+				currentViewState.pitch !== undefined &&
+				Math.abs(currentPitch - currentViewState.pitch) > 0.01;
 
 			if (centerChanged || zoomChanged || bearingChanged || pitchChanged) {
 				// These mutations don't need untrack since they don't return reactive values
@@ -371,7 +375,7 @@
 </script>
 
 <div
-	class="relative w-full h-full min-h-[400px]"
+	class="relative h-full min-h-[400px] w-full"
 	bind:this={mapContainer}
 	style:width={typeof width === 'number' ? `${width}px` : (width ?? '100%')}
 	style:height={typeof height === 'number' ? `${height}px` : (height ?? '100%')}
@@ -385,7 +389,9 @@
 			aria-live="polite"
 			aria-busy="true"
 		>
-			<div class="flex items-center gap-3 rounded-lg bg-white/95 px-6 py-4 text-sm text-slate-800 shadow">
+			<div
+				class="flex items-center gap-3 rounded-lg bg-white/95 px-6 py-4 text-sm text-slate-800 shadow"
+			>
 				<span
 					class="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-sky-500"
 					aria-hidden="true"
@@ -395,18 +401,20 @@
 		</div>
 	{:else if error}
 		<div class="absolute inset-0 grid place-items-center" role="alert" aria-live="assertive">
-			<div class="max-w-[80%] rounded-lg bg-red-600/95 px-6 py-5 text-center text-sm text-white shadow">
+			<div
+				class="max-w-[80%] rounded-lg bg-red-600/95 px-6 py-5 text-center text-sm text-white shadow"
+			>
 				<p class="font-semibold">Error</p>
 				<p class="mt-1 opacity-95">{error}</p>
-			<button
-				class="btn mt-4 bg-white text-red-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2"
-				type="button"
-				onclick={() => {
-					void initializeMap();
-				}}
-			>
-				Retry
-			</button>
+				<button
+					class="mt-4 btn bg-white text-red-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+					type="button"
+					onclick={() => {
+						void initializeMap();
+					}}
+				>
+					Retry
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -415,7 +423,9 @@
 	{#if showGlobeToggle && map && !loading && !error}
 		<button
 			type="button"
-			class="absolute {positionClasses[globeTogglePosition]} z-10 flex items-center rounded-lg bg-white px-2 py-2 shadow-lg transition-all hover:shadow-xl"
+			class="absolute {positionClasses[
+				globeTogglePosition
+			]} z-10 flex items-center rounded-lg bg-white px-2 py-2 shadow-lg transition-all hover:shadow-xl"
 			onclick={toggleProjection}
 			aria-label="Toggle between 2D and 3D globe view"
 		>

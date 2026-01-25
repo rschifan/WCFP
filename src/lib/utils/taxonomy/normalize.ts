@@ -6,7 +6,11 @@ import type {
 } from '$lib/types/taxonomy';
 
 function slugify(value: string): string {
-	return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+	return value
+		.toLowerCase()
+		.trim()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/(^-|-$)+/g, '');
 }
 
 export function normalizeTaxonomyTree(data: TaxonomyNode): TaxonomyTreeIndex {

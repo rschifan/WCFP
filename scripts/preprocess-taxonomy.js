@@ -93,9 +93,7 @@ console.log(`   Unique families: ${familyMap.size.toLocaleString()}`);
 
 // Convert Map to sorted object
 const families = {};
-const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) =>
-	a[0].localeCompare(b[0])
-);
+const sortedFamilies = Array.from(familyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
 for (const [family, data] of sortedFamilies) {
 	families[family] = data;

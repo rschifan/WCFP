@@ -50,7 +50,7 @@ export class TaxonomySearchIndex {
 
 	smartSearch(query: string): Set<string> {
 		if (!this.index) this.buildIndex();
-		
+
 		const normalizedQuery = query.toLowerCase().trim();
 		if (!normalizedQuery) return new Set();
 
@@ -72,7 +72,7 @@ export class TaxonomySearchIndex {
 	getAncestors(nodeId: string): string[] {
 		const ancestors: string[] = [];
 		let current = this.nodesById.get(nodeId)?.parentId ?? null;
-		
+
 		while (current !== null) {
 			ancestors.push(current);
 			current = this.nodesById.get(current)?.parentId ?? null;

@@ -189,20 +189,29 @@
 			}
 
 			// Only fit bounds if we have valid coordinates
-			if (isFinite(minLng) && isFinite(minLat) && isFinite(maxLng) && isFinite(maxLat) && 
-				minLng !== maxLng && minLat !== maxLat) {
+			if (
+				isFinite(minLng) &&
+				isFinite(minLat) &&
+				isFinite(maxLng) &&
+				isFinite(maxLat) &&
+				minLng !== maxLng &&
+				minLat !== maxLat
+			) {
 				// Reset bounds fitted state before fitting
 				boundsFitted = false;
-				
+
 				mapInstance.fitBounds(
-					[[minLng, minLat], [maxLng, maxLat]],
+					[
+						[minLng, minLat],
+						[maxLng, maxLat]
+					],
 					{
 						padding: 50, // Add padding around the bounds
 						duration: 0, // Immediate - no animation
 						maxZoom: 10 // Don't zoom in too much
 					}
 				);
-				
+
 				// Mark bounds as fitted after operation completes
 				// Use requestAnimationFrame to ensure it happens after the fitBounds operation
 				requestAnimationFrame(() => {
@@ -222,7 +231,7 @@
 	// Set up map layers (called when map is ready AND data is available)
 	function setupMapLayers() {
 		if (!mapInstance || !enrichedGeoJSON || layersSetup) return;
-		
+
 		// Ensure map style is loaded before adding layers
 		if (!mapInstance.isStyleLoaded()) {
 			mapInstance.once('styledata', () => {
@@ -345,10 +354,10 @@
 		if (source && source.type === 'geojson') {
 			// Reset bounds fitted state before updating
 			boundsFitted = false;
-			
+
 			// Update the source data
 			(source as GeoJSONSource).setData(enrichedGeoJSON);
-			
+
 			// Fit map to show all geographies immediately when data updates (if enabled)
 			if (autoFitBounds) {
 				fitMapToBounds();
@@ -382,7 +391,10 @@
 				// Update hover state if feature changed
 				if (hoveredFeatureId !== newFeatureId) {
 					if (hoveredFeatureId !== null) {
-						mapInstance.setFeatureState({ source: 'level3', id: hoveredFeatureId }, { hover: false });
+						mapInstance.setFeatureState(
+							{ source: 'level3', id: hoveredFeatureId },
+							{ hover: false }
+						);
 					}
 					if (newFeatureId !== undefined) {
 						mapInstance.setFeatureState({ source: 'level3', id: newFeatureId }, { hover: true });
@@ -437,7 +449,11 @@
 </script>
 
 <div class="relative h-full w-full">
-	<div class="h-full w-full transition-opacity duration-500 {boundsFitted ? 'opacity-100' : 'opacity-0'}">
+	<div
+		class="h-full w-full transition-opacity duration-500 {boundsFitted
+			? 'opacity-100'
+			: 'opacity-0'}"
+	>
 		<MapComponent
 			initialViewState={{ longitude: 0, latitude: 20, zoom: 2 }}
 			onMapLoad={handleMapLoad}

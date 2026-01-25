@@ -9,7 +9,15 @@
  * For raw JSON we infer ranks from depth using the schema, but we still
  * use this union type for normalized nodes and helpers.
  */
-export type TaxonomicRank = 'root' | 'kingdom' | 'phylum' | 'class' | 'order' | 'family' | 'genus' | 'species';
+export type TaxonomicRank =
+	| 'root'
+	| 'kingdom'
+	| 'phylum'
+	| 'class'
+	| 'order'
+	| 'family'
+	| 'genus'
+	| 'species';
 
 /**
  * Schema metadata for the taxonomy tree.

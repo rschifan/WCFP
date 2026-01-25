@@ -72,7 +72,7 @@
 
 	<!-- Panel -->
 	<div
-		class="fixed right-0 top-0 z-50 flex h-screen w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[420px]"
+		class="fixed top-0 right-0 z-50 flex h-screen w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:w-[420px]"
 		transition:fly={{ x: 420, duration: 300, easing: cubicOut }}
 	>
 		<!-- Header -->
@@ -92,7 +92,7 @@
 				<button
 					type="button"
 					onclick={onClose}
-					class="rounded-lg p-2 text-slate-400 transition-all duration-150 hover:bg-slate-200 hover:text-slate-600 hover:rotate-90"
+					class="rounded-lg p-2 text-slate-400 transition-all duration-150 hover:rotate-90 hover:bg-slate-200 hover:text-slate-600"
 					aria-label="Close panel"
 				>
 					<X class="h-5 w-5" />
@@ -119,10 +119,7 @@
 				</div>
 			{:else if error}
 				<!-- Error State -->
-				<div
-					class="flex h-64 items-center justify-center px-6"
-					transition:fade={{ duration: 200 }}
-				>
+				<div class="flex h-64 items-center justify-center px-6" transition:fade={{ duration: 200 }}>
 					<div class="rounded-xl bg-red-50 p-6 text-center shadow-sm">
 						<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
 							<CircleAlert class="h-6 w-6 text-red-500" />

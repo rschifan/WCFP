@@ -137,8 +137,7 @@ export class SpatialDistributionService implements ISpatialDistributionService {
 
 		// Extract all WCFP_IDs for this node using the schema-based taxonomy tree
 		const schema: TaxonomySchema | undefined = fullTree?.schema;
-		const targetIds =
-			schema && schema.ranks ? getWcfpIdsForNode(node, schema) : new Set<number>();
+		const targetIds = schema && schema.ranks ? getWcfpIdsForNode(node, schema) : new Set<number>();
 
 		if (targetIds.size === 0) {
 			// No IDs found, return empty distribution (not an error)
@@ -328,12 +327,12 @@ export class SpatialDistributionService implements ISpatialDistributionService {
 	hasDistributionData(node: TaxonomyNode, geoJSON: FeatureCollection): boolean {
 		const nodePath = getNodePath(node);
 		const cached = this.distributionCache.get(nodePath);
-		
+
 		if (!cached) {
 			// Not in cache - we don't know yet, return false to be conservative
 			return false;
 		}
-		
+
 		// Check if cached distribution has any data
 		return cached.size > 0;
 	}

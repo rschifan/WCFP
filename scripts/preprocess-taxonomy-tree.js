@@ -196,4 +196,3 @@ const fileSize = fs.statSync(OUTPUT_FILE).size;
 console.log(`   File size: ${(fileSize / 1024).toFixed(2)} KB`);
 
 console.log('\n🎉 Taxonomy tree preprocessing complete!');
-

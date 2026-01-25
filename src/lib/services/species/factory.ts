@@ -22,9 +22,7 @@ export function createSpeciesProvider(): SpeciesDataProvider {
 
 		case 'duckdb':
 			// TODO: Implement DuckDBSpeciesProvider when needed
-			throw new Error(
-				'DuckDB provider not yet implemented. Use "json" or "api" provider instead.'
-			);
+			throw new Error('DuckDB provider not yet implemented. Use "json" or "api" provider instead.');
 
 		default:
 			throw new Error(`Unknown provider type: ${config.speciesProvider}`);

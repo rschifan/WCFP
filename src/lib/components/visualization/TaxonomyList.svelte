@@ -28,7 +28,7 @@
 	const rootId = $derived(startFromId ?? data.rootId);
 	const nodesById = $derived(data.nodesById);
 	const searchIndex = $derived(new TaxonomySearchIndex(nodesById));
-	
+
 	let expandedNodes = new SvelteSet<string>();
 	let selectedId = $state<string | null>(null);
 	let searchQuery = $state('');
@@ -51,11 +51,15 @@
 
 		const matchedNodeIds = searchIndex.smartSearch(searchTerm);
 		if (matchedNodeIds.size === 0) {
-			return { childrenById: new Map<string, string[]>(), expanded: new Set<string>(), hasMatches: false };
+			return {
+				childrenById: new Map<string, string[]>(),
+				expanded: new Set<string>(),
+				hasMatches: false
+			};
 		}
 
 		const visibleSet = new Set<string>();
-		
+
 		// Build visible set with matched nodes and ancestors
 		for (const nodeId of matchedNodeIds) {
 			visibleSet.add(nodeId);
@@ -116,7 +120,7 @@
 		const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 		const regex = new RegExp(`(${escapedQuery})`, 'gi');
 		const parts = text.split(regex);
-		
+
 		return parts
 			.map((part, index) => ({ text: part, isMatch: index % 2 === 1 }))
 			.filter((item) => item.text !== '');
@@ -130,7 +134,12 @@
 			console.log('[TaxonomyList] Collapsed node:', nodeId);
 		} else {
 			expandedNodes.add(nodeId);
-			console.log('[TaxonomyList] Expanded node:', nodeId, 'expandedNodes size:', expandedNodes.size);
+			console.log(
+				'[TaxonomyList] Expanded node:',
+				nodeId,
+				'expandedNodes size:',
+				expandedNodes.size
+			);
 		}
 	}
 
@@ -145,7 +154,12 @@
 			if (hasKids && !isSearching) toggleExpanded(nodeId, event);
 			// Navigation always works - don't call selectNode here
 			// Map icon button handles selection for nodes with spatial data
-		} else if (event.key === 'ArrowRight' && hasKids && !isExpandedEffective(nodeId) && !isSearching) {
+		} else if (
+			event.key === 'ArrowRight' &&
+			hasKids &&
+			!isExpandedEffective(nodeId) &&
+			!isSearching
+		) {
 			event.preventDefault();
 			expandedNodes.add(nodeId);
 		} else if (event.key === 'ArrowLeft' && isExpandedEffective(nodeId) && !isSearching) {
@@ -153,20 +167,19 @@
 			expandedNodes.delete(nodeId);
 		}
 	}
-
 </script>
 
 {#snippet highlightedText(text: string, query: string)}
 	{#each splitByMatch(text, query) as part, i (i)}
 		{#if part.isMatch}
-			<mark class="bg-amber-200 text-amber-900 rounded px-0.5">{part.text}</mark>
+			<mark class="rounded bg-amber-200 px-0.5 text-amber-900">{part.text}</mark>
 		{:else}
 			{part.text}
 		{/if}
 	{/each}
 {/snippet}
 
-	{#snippet nodeItem(nodeId: string, depth: number)}
+{#snippet nodeItem(nodeId: string, depth: number)}
 	{@const node = nodesById.get(nodeId)}
 	{#if node}
 		{@const childIds = getChildrenIds(nodeId)}
@@ -174,14 +187,16 @@
 		{@const expanded = isExpandedEffective(nodeId)}
 		{@const selected = selectedId === nodeId}
 		{@const rankColor = getRankColor(node.rank)}
-		{@const isClickable = isNodeClickable ? (() => {
-			try {
-				return isNodeClickable(node);
-			} catch (err) {
-				console.warn('[TaxonomyList] Error checking node clickability:', err);
-				return false;
-			}
-		})() : false}
+		{@const isClickable = isNodeClickable
+			? (() => {
+					try {
+						return isNodeClickable(node);
+					} catch (err) {
+						console.warn('[TaxonomyList] Error checking node clickability:', err);
+						return false;
+					}
+				})()
+			: false}
 
 		<li
 			class="m-0 list-none p-0"
@@ -190,13 +205,17 @@
 			aria-selected={selected}
 		>
 			<div
-				class="flex w-full items-start gap-2 px-2 py-2 transition-colors duration-150 {hasKids ? 'hover:bg-black/[0.04] active:bg-black/[0.08]' : ''} {selected ? 'bg-blue-500/10' : ''}"
+				class="flex w-full items-start gap-2 px-2 py-2 transition-colors duration-150 {hasKids
+					? 'hover:bg-black/[0.04] active:bg-black/[0.08]'
+					: ''} {selected ? 'bg-blue-500/10' : ''}"
 				style:padding-left="{12 + depth * 16}px"
 			>
 				<!-- Navigation Button (expand/collapse) -->
 				<button
 					type="button"
-					class="flex flex-1 items-start gap-2 border-none bg-transparent text-left min-w-0 relative z-10 {hasKids ? 'cursor-pointer' : 'cursor-default'}"
+					class="relative z-10 flex min-w-0 flex-1 items-start gap-2 border-none bg-transparent text-left {hasKids
+						? 'cursor-pointer'
+						: 'cursor-default'}"
 					onclick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
@@ -210,10 +229,14 @@
 				>
 					<!-- Expand/Collapse Chevron -->
 					<div
-						class="flex shrink-0 items-center justify-center w-5 h-5 mt-0.5 text-gray-400 {!hasKids ? 'invisible' : ''}"
+						class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400 {!hasKids
+							? 'invisible'
+							: ''}"
 					>
 						<svg
-							class="w-4 h-4 transition-transform duration-200 motion-reduce:transition-none {expanded ? 'rotate-90' : ''}"
+							class="h-4 w-4 transition-transform duration-200 motion-reduce:transition-none {expanded
+								? 'rotate-90'
+								: ''}"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -224,11 +247,12 @@
 					</div>
 
 					<!-- Main Content -->
-					<div class="flex-1 min-w-0">
+					<div class="min-w-0 flex-1">
 						<!-- First Line: Name with Rank Dot -->
-						<div class="flex items-center gap-2 mb-1">
-							<span class="w-2.5 h-2.5 shrink-0 rounded-full" style:background-color={rankColor}></span>
-							<span class="text-sm font-semibold text-gray-900 truncate">
+						<div class="mb-1 flex items-center gap-2">
+							<span class="h-2.5 w-2.5 shrink-0 rounded-full" style:background-color={rankColor}
+							></span>
+							<span class="truncate text-sm font-semibold text-gray-900">
 								{#if isSearching}
 									{@render highlightedText(node.name, debouncedQuery)}
 								{:else}
@@ -238,14 +262,15 @@
 						</div>
 
 						<!-- Second Line: Rank Label and Actions -->
-						<div class="flex items-center gap-2 ml-4.5">
+						<div class="ml-4.5 flex items-center gap-2">
 							<span class="text-xs text-gray-500 capitalize">
 								{getRankLabel(node.rank)}
 							</span>
 							{#if hasKids}
 								<span class="text-xs text-gray-400">•</span>
 								<span class="text-xs text-gray-500">
-									{childIds.length} {childIds.length === 1 ? 'child' : 'children'}
+									{childIds.length}
+									{childIds.length === 1 ? 'child' : 'children'}
 								</span>
 							{/if}
 						</div>
@@ -256,7 +281,7 @@
 				{#if isClickable}
 					<button
 						type="button"
-						class="flex shrink-0 items-center justify-center w-8 h-8 mt-0.5 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-500 focus-visible:-outline-offset-2"
+						class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-500 active:bg-gray-200"
 						title="View spatial distribution map"
 						aria-label="View spatial distribution map for {node.name}"
 						onclick={(event) => {
@@ -290,18 +315,18 @@
 <div class="flex h-full flex-col overflow-hidden bg-slate-50 {className}">
 	<div class="sticky top-0 z-10 bg-white px-3 py-2">
 		<div class="relative">
-			<Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
 			<input
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Search"
-				class="text-black w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-10 text-sm transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-100"
+				class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
 			/>
 			{#if searchQuery}
 				<button
 					type="button"
 					onclick={() => (searchQuery = '')}
-					class="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+					class="absolute top-1/2 right-3 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
 					aria-label="Clear search"
 				>
 					<X class="h-4 w-4" />
@@ -315,7 +340,11 @@
 			No results found
 		</div>
 	{:else}
-		<ul class="m-0 flex-1 list-none overflow-y-auto overflow-x-hidden py-1" role="tree" aria-label="Taxonomy hierarchy">
+		<ul
+			class="m-0 flex-1 list-none overflow-x-hidden overflow-y-auto py-1"
+			role="tree"
+			aria-label="Taxonomy hierarchy"
+		>
 			{@render nodeItem(rootId, 0)}
 		</ul>
 	{/if}

@@ -20,37 +20,41 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 ### Installation
 
 1. Clone the repository:
+
    ```bash
    git clone <repository-url>
    cd explorer
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```
 
 3. Set up environment variables:
+
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
    ```
 
 4. **Obtain source data files** (required for preprocessing):
-   
+
    The preprocessing scripts require the following WCFP source data files in the `data/` directory:
    - `data/1.geo_distr_taxa.csv` (55 MB) - Species geographic distribution data
    - `data/3.WCFP.xlsx` - World Checklist of Food Plants (WCFP) species data
    - `data/wgsrpd-master/` - TDWG geographic region data (optional)
-   
+
    **Note**: These files are excluded from git due to their size. You need to obtain them separately:
    - From a team shared location
    - From cloud storage
    - From the original data source
-   
+
    Once you have the data files, place them in the `data/` directory.
 
 5. Generate static data files (if needed):
+
    ```bash
    pnpm preprocess:species
    node scripts/preprocess-taxonomy.js
@@ -58,6 +62,7 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
    ```
 
 6. Start the development server:
+
    ```bash
    pnpm dev
    ```
@@ -176,6 +181,7 @@ The WCFP application uses preprocessing scripts to transform large source data f
 - Shapefiles - Geographic region data
 
 **To obtain WCFP source data files:**
+
 1. Contact the WCFP project maintainer
 2. Check team shared storage
 3. Download from the original WCFP data source

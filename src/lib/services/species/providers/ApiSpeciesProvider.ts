@@ -79,9 +79,7 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 			}
 
 			// Handle both { data: [...] } and [...] response formats
-			const species = Array.isArray(result)
-				? result
-				: (result as { data?: unknown }).data ?? [];
+			const species = Array.isArray(result) ? result : ((result as { data?: unknown }).data ?? []);
 
 			// Validate structure
 			if (!Array.isArray(species)) {
@@ -154,11 +152,10 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 				typeof stats.familyCount !== 'number' ||
 				!Array.isArray(stats.topFamilies)
 			) {
-				throw new ServiceError(
-					ServiceErrorCode.INVALID_DATA,
-					'Invalid stats response format',
-					{ regionName, result }
-				);
+				throw new ServiceError(ServiceErrorCode.INVALID_DATA, 'Invalid stats response format', {
+					regionName,
+					result
+				});
 			}
 
 			return stats as RegionStats;

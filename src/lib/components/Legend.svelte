@@ -36,7 +36,12 @@
 	}: Props = $props();
 
 	const subtitleId = $derived(
-		`legend-subtitle-${title.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') || 'legend'}`
+		`legend-subtitle-${
+			title
+				.toLowerCase()
+				.trim()
+				.replace(/[^a-z0-9]+/g, '-') || 'legend'
+		}`
 	);
 	const positionClass = $derived(position === 'bottom' ? 'bottom-2' : 'top-6');
 	const gradientStyle = $derived(
@@ -60,13 +65,10 @@
 
 		<div class="flex flex-col gap-2">
 			<div class="relative">
-				<div
-					class="h-2 w-60"
-					style={gradientStyle}
-				></div>
-				<div class="absolute left-0 top-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
-				<div class="absolute left-1/2 top-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
-				<div class="absolute right-0 top-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+				<div class="h-2 w-60" style={gradientStyle}></div>
+				<div class="absolute top-1/2 left-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+				<div class="absolute top-1/2 left-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+				<div class="absolute top-1/2 right-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
 			</div>
 
 			<div class="grid grid-cols-3 text-xs text-slate-600">

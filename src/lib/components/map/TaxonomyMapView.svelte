@@ -16,7 +16,12 @@
 	 */
 
 	import type { FeatureCollection } from 'geojson';
-	import type { TaxonomyNode, FamilyLookup, TaxonomySchema, TaxonomyNodeNormalized } from '$lib/types/taxonomy';
+	import type {
+		TaxonomyNode,
+		FamilyLookup,
+		TaxonomySchema,
+		TaxonomyNodeNormalized
+	} from '$lib/types/taxonomy';
 	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
 	import ChoroplethMap from './ChoroplethMap.svelte';
 	import { useSpatialDistributionService } from '$lib/services/spatial-distribution';
@@ -65,9 +70,7 @@
 	}: Props = $props();
 
 	// Extract schema from taxonomyTree (derived to ensure reactivity)
-	const schema = $derived(
-		(taxonomyTree as TaxonomyNode & { schema?: TaxonomySchema }).schema
-	);
+	const schema = $derived((taxonomyTree as TaxonomyNode & { schema?: TaxonomySchema }).schema);
 
 	// Get service from context
 	// Note: This will throw if context is not set - ensure parent component
@@ -154,7 +157,6 @@
 		return () => resizeObserver.disconnect();
 	});
 
-
 	// Fetch distribution data when selectedNormalizedNode changes
 	// This is a legitimate use of $effect for async side effects
 	$effect(() => {
@@ -233,7 +235,11 @@
 
 				// Unknown error type
 				const message = err instanceof Error ? err.message : String(err);
-				fetchState = { status: 'error', message: `Failed to load distribution: ${message}`, hasTargetIds };
+				fetchState = {
+					status: 'error',
+					message: `Failed to load distribution: ${message}`,
+					hasTargetIds
+				};
 				console.error('[TaxonomyMapView] Error loading distribution:', err);
 			});
 
@@ -283,7 +289,9 @@
 			return ids.size > 0;
 		}
 		if (import.meta.env.DEV) {
-			console.warn('[TaxonomyMapView] No schema found on taxonomyTree; WCFP_ID extraction unavailable');
+			console.warn(
+				'[TaxonomyMapView] No schema found on taxonomyTree; WCFP_ID extraction unavailable'
+			);
 		}
 		return false;
 	}
@@ -338,18 +346,18 @@
 	{#if !isMobile}
 		<div class="flex h-full w-full">
 			<!-- Taxonomy Panel - Left side, fixed width -->
-			<div class="w-96 border-r border-slate-200 overflow-hidden flex-shrink-0">
+			<div class="w-96 flex-shrink-0 overflow-hidden border-r border-slate-200">
 				<TaxonomyList
 					data={normalizedData}
-					startFromId={startFromId}
+					{startFromId}
 					onNodeSelect={handleNodeClick}
-					isNodeClickable={isNodeClickable}
+					{isNodeClickable}
 					class="h-full w-full"
 				/>
 			</div>
 
 			<!-- Map View - Right side, flexible width -->
-			<div class="flex-1 min-w-0 overflow-hidden bg-white">
+			<div class="min-w-0 flex-1 overflow-hidden bg-white">
 				{#if error}
 					<div class="flex h-full items-center justify-center">
 						<div class="rounded-lg bg-red-100 p-6 text-red-800 shadow-lg">
@@ -368,7 +376,7 @@
 					</div>
 				{:else if selectedNode && hasTargetIdsForSelection && !hasMatchesForSelection}
 					<div class="flex h-full items-center justify-center bg-slate-50">
-						<div class="text-center text-slate-500 max-w-md px-4">
+						<div class="max-w-md px-4 text-center text-slate-500">
 							<p class="text-lg font-semibold">No distribution data available</p>
 							<p class="mt-2 text-sm">
 								The selected taxon has valid WCFP_IDs, but none of them appear in the geographic
@@ -379,8 +387,8 @@
 					</div>
 				{:else if selectedNode && distributionData.size > 0}
 					<ChoroplethMap
-						geoJSON={geoJSON}
-						distributionData={distributionData}
+						{geoJSON}
+						{distributionData}
 						colors={{ low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' }}
 						hoverColor="#14532d"
 					/>
@@ -395,7 +403,9 @@
 					<div class="flex h-full items-center justify-center bg-slate-50">
 						<div class="text-center text-slate-500">
 							<p class="text-lg font-semibold">Select a taxonomy node</p>
-							<p class="mt-2 text-sm">Click on a node in the tree to view its spatial distribution</p>
+							<p class="mt-2 text-sm">
+								Click on a node in the tree to view its spatial distribution
+							</p>
 						</div>
 					</div>
 				{/if}
@@ -406,15 +416,15 @@
 		<div class="relative h-full w-full">
 			<!-- Taxonomy Panel - Full screen initially, minimized left when node selected -->
 			<div
-				class="absolute left-0 h-full overflow-hidden transition-all duration-300 ease-in-out bg-white border-r border-slate-200"
+				class="absolute left-0 h-full overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out"
 				style:width={showMap && selectedNode ? '40%' : '100%'}
 				style:z-index={showMap && selectedNode ? '10' : '20'}
 			>
 				<TaxonomyList
 					data={normalizedData}
-					startFromId={startFromId}
+					{startFromId}
 					onNodeSelect={handleNodeClick}
-					isNodeClickable={isNodeClickable}
+					{isNodeClickable}
 					class="h-full w-full"
 				/>
 			</div>
@@ -444,7 +454,7 @@
 						</div>
 					{:else if hasTargetIdsForSelection && !hasMatchesForSelection}
 						<div class="flex h-full items-center justify-center bg-slate-50">
-							<div class="text-center text-slate-500 max-w-md px-4">
+							<div class="max-w-md px-4 text-center text-slate-500">
 								<p class="text-lg font-semibold">No distribution data available</p>
 								<p class="mt-2 text-sm">
 									The selected taxon has valid WCFP_IDs, but none of them appear in the geographic
@@ -455,8 +465,8 @@
 						</div>
 					{:else if distributionData.size > 0}
 						<ChoroplethMap
-							geoJSON={geoJSON}
-							distributionData={distributionData}
+							{geoJSON}
+							{distributionData}
 							colors={{ low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' }}
 							hoverColor="#14532d"
 						/>

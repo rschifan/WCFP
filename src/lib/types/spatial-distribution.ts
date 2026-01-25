@@ -49,7 +49,7 @@ export interface ISpatialDistributionService {
 	 * Check if a node has distribution data (synchronously checks cache only).
 	 * Returns true if the node is in cache and has non-empty distribution data.
 	 * Returns false if not in cache or has empty distribution data.
-	 * 
+	 *
 	 * @param node - The taxonomy node to check
 	 * @param geoJSON - GeoJSON feature collection (used for cache key consistency)
 	 * @returns true if node has distribution data in cache, false otherwise

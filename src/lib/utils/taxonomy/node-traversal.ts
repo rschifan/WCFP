@@ -28,10 +28,7 @@ export function getNodeRankFromDepth(schema: TaxonomySchema, depth: number): str
 /**
  * Convenience helper to infer rank for a normalized node using its stored depth.
  */
-export function getNodeRankFromNode(
-	node: TaxonomyNodeNormalized,
-	schema: TaxonomySchema
-): string {
+export function getNodeRankFromNode(node: TaxonomyNodeNormalized, schema: TaxonomySchema): string {
 	return getNodeRankFromDepth(schema, node.depth);
 }
 
@@ -39,7 +36,7 @@ export function getNodeRankFromNode(
  * Recursively collect all descendant species nodes from a raw taxonomy node.
  *
  * Uses schema and depth to identify species by rank.
- * 
+ *
  * IMPORTANT: If the node itself has a `wcfpId`, it is considered a species
  * regardless of depth calculation (handles cases where depth is unknown).
  */
@@ -67,9 +64,7 @@ export function collectDescendantSpecies(
 	if (node.children && Array.isArray(node.children)) {
 		for (const child of node.children) {
 			if (child && typeof child === 'object' && 'name' in child) {
-				species.push(
-					...collectDescendantSpecies(child as TaxonomyNode, schema, depth + 1)
-				);
+				species.push(...collectDescendantSpecies(child as TaxonomyNode, schema, depth + 1));
 			}
 		}
 	}
@@ -111,7 +106,7 @@ export function collectDescendantSpeciesNormalized(
  * Get all descendant WCFP_IDs for a given taxonomy node.
  *
  * Uses the schema-based taxonomy tree where species nodes carry `wcfpId`.
- * 
+ *
  * IMPORTANT: If the node itself is a species (has `wcfpId`), it will be included
  * in the result set. This handles the case where a species node is selected directly.
  */
@@ -214,10 +209,7 @@ export function findNodeByPath(tree: TaxonomyNode, path: string): TaxonomyNode |
 				const nextPart = pathParts[i + 1];
 				const matchingChild = currentNode.children.find(
 					(child) =>
-						child &&
-						typeof child === 'object' &&
-						'name' in child &&
-						child.name === nextPart
+						child && typeof child === 'object' && 'name' in child && child.name === nextPart
 				) as TaxonomyNode | undefined;
 
 				if (matchingChild) {

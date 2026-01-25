@@ -35,11 +35,7 @@ export class ServiceError extends Error {
 	readonly code: ServiceErrorCode;
 	readonly context?: Record<string, unknown>;
 
-	constructor(
-		code: ServiceErrorCode,
-		message: string,
-		context?: Record<string, unknown>
-	) {
+	constructor(code: ServiceErrorCode, message: string, context?: Record<string, unknown>) {
 		super(message);
 		this.name = 'ServiceError';
 		this.code = code;
@@ -62,9 +58,6 @@ export class ServiceError extends Error {
 	 * Check if error is recoverable (can continue processing other items)
 	 */
 	isRecoverable(): boolean {
-		return (
-			this.code === ServiceErrorCode.DATA_NOT_FOUND ||
-			this.code === ServiceErrorCode.ABORTED
-		);
+		return this.code === ServiceErrorCode.DATA_NOT_FOUND || this.code === ServiceErrorCode.ABORTED;
 	}
 }

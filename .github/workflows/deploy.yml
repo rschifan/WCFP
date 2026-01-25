@@ -66,17 +66,12 @@ jobs:
         run: |
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy via SCP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: 'build/*'
-          target: ${{ secrets.SSH_REMOTE_PATH }}
-          strip_components: 0
-          rm: false
+      - name: Deploy via rsync (using SSH agent)
+        run: |
+          rsync -avz --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT || 22 }}" \
+            build/ \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_REMOTE_PATH }}/
 
       - name: Health check
         run: |

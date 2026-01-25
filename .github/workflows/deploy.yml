@@ -107,6 +107,13 @@ jobs:
             ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_REMOTE_PATH }}/
           echo "Deployment completed"
 
+      - name: Verify deployment on server
+        run: |
+          echo "Verifying deployed files on server:"
+          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no \
+            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
+            "ls -la ${{ secrets.SSH_REMOTE_PATH }}/ && echo '' && echo 'Looking for index.html:' && find ${{ secrets.SSH_REMOTE_PATH }} -name 'index.html' -type f | head -5"
+
       - name: Cleanup SSH key
         if: always()
         run: |

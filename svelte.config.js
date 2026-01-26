@@ -13,7 +13,7 @@ const config = {
 		adapter: adapter({
 			pages: 'build',
 			assets: 'build',
-			fallback: undefined,
+			fallback: 'index.html', // Fallback for client-side routing
 			precompress: false,
 			strict: true
 		}),

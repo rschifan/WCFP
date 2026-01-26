@@ -10,7 +10,6 @@
 	import { formatCount } from '$lib/utils/format';
 	import {
 		Search,
-		X,
 		ChevronRight,
 		Maximize2,
 		Minimize2,
@@ -28,12 +27,12 @@
 
 	interface Props {
 		species: Species[];
+		searchQuery?: string;
 	}
 
-	let { species }: Props = $props();
+	let { species, searchQuery = '' }: Props = $props();
 
 	// State
-	let searchQuery = $state('');
 	let expandedFamilies = new SvelteSet<string>();
 	let expandedGenera = new SvelteSet<string>();
 	let activeTooltip = $state<{ id: string; x: number; y: number } | null>(null);
@@ -312,7 +311,7 @@
 	{/if}
 {/snippet}
 
-<div class="taxonomy-tree mt-2 flex h-full flex-col">
+<div class="taxonomy-tree flex h-full flex-col">
 	<!-- Tooltip -->
 	{#if activeTooltip}
 		{@const cfg = USE_CONFIG[activeTooltip.id]}
@@ -333,65 +332,42 @@
 		</div>
 	{/if}
 
-	<!-- Search -->
-	<div class="sticky top-0 z-10 bg-white px-4 pt-1 pb-3">
-		<div class="relative">
-			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder="Search families, genera, or species..."
-				class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
-			/>
+	<!-- Stats and controls -->
+	<div class="sticky top-0 z-10 flex items-center justify-between bg-white px-4 py-2 text-xs text-slate-500">
+		<span>
 			{#if searchQuery}
-				<button
-					type="button"
-					onclick={() => (searchQuery = '')}
-					class="absolute top-1/2 right-3 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-					aria-label="Clear search"
-				>
-					<X class="h-4 w-4" />
-				</button>
+				<span class="font-medium text-sky-600">{visibleFamilies}</span> of {totalFamilies} families,
+				<span class="font-medium text-sky-600">{formatCount(visibleSpecies)}</span> of {formatCount(
+					totalSpecies
+				)} species
+			{:else}
+				{totalFamilies} families, {formatCount(totalSpecies)} species
 			{/if}
-		</div>
-
-		<!-- Stats -->
-		<div class="mt-2 flex items-center justify-between text-xs text-slate-500">
-			<span>
-				{#if searchQuery}
-					<span class="font-medium text-sky-600">{visibleFamilies}</span> of {totalFamilies} families,
-					<span class="font-medium text-sky-600">{formatCount(visibleSpecies)}</span> of {formatCount(
-						totalSpecies
-					)} species
-				{:else}
-					{totalFamilies} families, {formatCount(totalSpecies)} species
-				{/if}
-			</span>
-			<div class="flex gap-1">
-				<button
-					type="button"
-					onclick={expandAll}
-					class="rounded px-2 py-1 hover:bg-slate-100"
-					title="Expand all"
-					aria-label="Expand all"
-				>
-					<Maximize2 class="h-3.5 w-3.5" />
-				</button>
-				<button
-					type="button"
-					onclick={collapseAll}
-					class="rounded px-2 py-1 hover:bg-slate-100"
-					title="Collapse all"
-					aria-label="Collapse all"
-				>
-					<Minimize2 class="h-3.5 w-3.5" />
-				</button>
-			</div>
+		</span>
+		<div class="flex gap-1">
+			<button
+				type="button"
+				onclick={expandAll}
+				class="rounded px-2 py-1 hover:bg-slate-100"
+				title="Expand all"
+				aria-label="Expand all"
+			>
+				<Maximize2 class="h-3.5 w-3.5" />
+			</button>
+			<button
+				type="button"
+				onclick={collapseAll}
+				class="rounded px-2 py-1 hover:bg-slate-100"
+				title="Collapse all"
+				aria-label="Collapse all"
+			>
+				<Minimize2 class="h-3.5 w-3.5" />
+			</button>
 		</div>
 	</div>
 
 	<!-- Tree -->
-	<div class="flex-1 overflow-y-auto px-2">
+	<div class="flex-1 overflow-y-auto px-2 pb-8">
 		{#if filteredGroups.length === 0}
 			<div class="flex flex-col items-center justify-center py-12 text-center" transition:fade>
 				<Search class="h-12 w-12 text-slate-300" strokeWidth={1.5} />

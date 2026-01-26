@@ -113,6 +113,7 @@
 				<ChoroplethMap
 					geoJSON={geoJSONData}
 					distributionData={new Map()}
+					{selectedRegion}
 					colors={{ low: COLOR_LOW, mid: COLOR_MID, high: COLOR_HIGH }}
 					hoverColor={HOVER_COLOR}
 					onRegionClick={handleRegionClick}

@@ -2,21 +2,31 @@
 	import { onMount } from 'svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
-	import type { Species } from '$lib/types/species';
+	import type { Species, SpeciesFilters } from '$lib/types/species';
 	import TaxonomyTree from './TaxonomyTree.svelte';
+	import SearchFilterBar from './SearchFilterBar.svelte';
 	import { formatCount } from '$lib/utils/format';
 	import { X, CircleAlert, Inbox, ChevronLeft, ChevronRight, GripVertical } from 'lucide-svelte';
 
 	interface Props {
 		selectedRegion: string | null;
 		species: Species[];
+		allSpecies: Species[];
+		filters: SpeciesFilters;
+		onFilterChange: (filters: SpeciesFilters) => void;
+		searchQuery: string;
+		onSearchChange: (query: string) => void;
 		loading: boolean;
 		error: string | null;
 		onClose?: () => void;
 		onRetry?: () => void;
 	}
 
-	let { selectedRegion, species, loading, error, onClose, onRetry }: Props = $props();
+	let { selectedRegion, species, allSpecies, filters, onFilterChange, searchQuery, onSearchChange, loading, error, onClose, onRetry }: Props = $props();
+
+	let hasActiveFilters = $derived(
+		filters.lifeforms.size > 0 || filters.uses.size > 0 || filters.cwr === true
+	);
 
 	const STORAGE_KEY = 'species-panel-width';
 	const MIN_WIDTH = 300;
@@ -126,8 +136,20 @@
 			<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
 				<Inbox class="h-8 w-8 text-slate-400" strokeWidth={1.5} />
 			</div>
-			<p class="mt-4 font-semibold text-slate-700">No species data</p>
-			<p class="mt-2 text-sm text-slate-500">No species found for this region</p>
+			{#if hasActiveFilters}
+				<p class="mt-4 font-semibold text-slate-700">No matching species</p>
+				<p class="mt-2 text-sm text-slate-500">Try adjusting your filters</p>
+				<button
+					type="button"
+					onclick={() => onFilterChange({ lifeforms: new Set(), cwr: null, uses: new Set() })}
+					class="mt-3 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
+				>
+					Clear filters
+				</button>
+			{:else}
+				<p class="mt-4 font-semibold text-slate-700">No species data</p>
+				<p class="mt-2 text-sm text-slate-500">No species found for this region</p>
+			{/if}
 		</div>
 	</div>
 {/snippet}
@@ -141,8 +163,8 @@
 		{#if !isCollapsed}
 			<button
 				type="button"
-				class="absolute top-0 right-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center hover:bg-sky-100"
-				class:bg-sky-200={isResizing}
+				class="absolute top-0 right-0 z-10 flex h-full w-2 cursor-col-resize items-center justify-center bg-slate-100 hover:bg-sky-200"
+				class:bg-sky-300={isResizing}
 				onmousedown={startResize}
 				aria-label="Resize panel"
 			>
@@ -188,7 +210,11 @@
 						<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
 						{#if !loading && !error}
 							<p class="text-sm text-slate-600" transition:fade={{ duration: 150 }}>
-								{formatCount(species.length)} species found
+								{#if species.length !== allSpecies.length}
+									<span class="font-medium text-sky-600">{formatCount(species.length)}</span> of {formatCount(allSpecies.length)} species
+								{:else}
+									{formatCount(species.length)} species found
+								{/if}
 							</p>
 						{/if}
 					</div>
@@ -205,6 +231,16 @@
 					{/if}
 				</div>
 
+				{#if !loading && !error && allSpecies.length > 0}
+					<SearchFilterBar
+						{filters}
+						species={allSpecies}
+						{onFilterChange}
+						{searchQuery}
+						{onSearchChange}
+					/>
+				{/if}
+
 				<div class="flex-1 overflow-y-auto">
 					{#if loading}
 						{@render loadingState()}
@@ -213,7 +249,7 @@
 					{:else if species.length === 0}
 						{@render emptyState()}
 					{:else}
-						<TaxonomyTree {species} />
+						<TaxonomyTree {species} {searchQuery} />
 					{/if}
 				</div>
 			</div>

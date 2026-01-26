@@ -24,6 +24,8 @@
 		geoJSON: FeatureCollection;
 		/** Distribution data: Map of region names to species counts */
 		distributionData: Map<string, number>;
+		/** Currently selected region name */
+		selectedRegion?: string | null;
 		/** Optional callback when map is loaded */
 		onMapLoad?: (map: MapLibreMapType) => void;
 		/** Optional callback when a region is clicked */
@@ -36,6 +38,8 @@
 		};
 		/** Hover color for highlighted regions */
 		hoverColor?: string;
+		/** Selected region border color */
+		selectedColor?: string;
 		/** Tooltip offset in pixels */
 		tooltipOffset?: number;
 		/** Show legend (default: true) */
@@ -51,10 +55,12 @@
 	let {
 		geoJSON,
 		distributionData,
+		selectedRegion = null,
 		onMapLoad,
 		onRegionClick,
 		colors = { low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' },
 		hoverColor = '#14532d',
+		selectedColor = '#0ea5e9',
 		tooltipOffset = 10,
 		showLegend = true,
 		legendTitle = 'Count',
@@ -67,6 +73,9 @@
 	let tooltip = $state<{ x: number; y: number; name: string; count: number } | null>(null);
 	let hoveredFeatureId = $state<string | number | null>(null);
 	let boundsFitted = $state(false);
+
+	// Non-reactive variable for tracking selected feature (to avoid infinite loops in effects)
+	let currentSelectedFeatureId: string | number | null = null;
 
 	// Derived: Enriched GeoJSON with count data
 	const enrichedGeoJSON = $derived.by(() => {
@@ -254,6 +263,12 @@
 			if (mapInstance.getLayer('level3-hover')) {
 				mapInstance.removeLayer('level3-hover');
 			}
+			if (mapInstance.getLayer('level3-selected')) {
+				mapInstance.removeLayer('level3-selected');
+			}
+			if (mapInstance.getLayer('level3-selected-fill')) {
+				mapInstance.removeLayer('level3-selected-fill');
+			}
 			mapInstance.removeSource('level3');
 		}
 
@@ -343,6 +358,39 @@
 						['boolean', ['feature-state', 'hover'], false],
 						['>', ['coalesce', ['get', 'unique_count'], 0], 0]
 					],
+					1,
+					0
+				]
+			}
+		});
+
+		// Add selected region fill overlay (subtle highlight)
+		mapInstance.addLayer({
+			id: 'level3-selected-fill',
+			type: 'fill',
+			source: 'level3',
+			paint: {
+				'fill-color': selectedColor,
+				'fill-opacity': [
+					'case',
+					['boolean', ['feature-state', 'selected'], false],
+					0.25,
+					0
+				]
+			}
+		});
+
+		// Add selected region border (thick, clear border)
+		mapInstance.addLayer({
+			id: 'level3-selected',
+			type: 'line',
+			source: 'level3',
+			paint: {
+				'line-color': selectedColor,
+				'line-width': 4,
+				'line-opacity': [
+					'case',
+					['boolean', ['feature-state', 'selected'], false],
 					1,
 					0
 				]
@@ -483,6 +531,44 @@
 		} else if (layersSetup && enrichedGeoJSON) {
 			// Update data if layers are already set up
 			updateMapData();
+		}
+	});
+
+	// Update selected region highlight when selectedRegion changes
+	$effect(() => {
+		if (!mapInstance || !layersSetup || !enrichedGeoJSON) return;
+
+		// Read selectedRegion to establish dependency
+		const region = selectedRegion;
+
+		// Clear previous selection
+		if (currentSelectedFeatureId !== null) {
+			try {
+				mapInstance.setFeatureState(
+					{ source: 'level3', id: currentSelectedFeatureId },
+					{ selected: false }
+				);
+			} catch {
+				// Ignore errors if feature doesn't exist
+			}
+			currentSelectedFeatureId = null;
+		}
+
+		// Set new selection if there's a selected region
+		if (region) {
+			// Find the feature ID for the selected region
+			const features = mapInstance.querySourceFeatures('level3');
+			for (const feature of features) {
+				const regionName = feature.properties?.area || feature.properties?.LEVEL3_NAM;
+				if (regionName === region && feature.id !== undefined) {
+					mapInstance.setFeatureState(
+						{ source: 'level3', id: feature.id },
+						{ selected: true }
+					);
+					currentSelectedFeatureId = feature.id;
+					break;
+				}
+			}
 		}
 	});
 </script>

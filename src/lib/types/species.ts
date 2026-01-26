@@ -58,3 +58,26 @@ export interface SpeciesManifest {
 	generated: number;
 	files: Record<string, string>;
 }
+
+/**
+ * Keys for species use categories (excluding 'total')
+ */
+export type SpeciesUseKey = Exclude<keyof SpeciesUses, 'total'>;
+
+/**
+ * Active filters for species list
+ */
+export interface SpeciesFilters {
+	lifeforms: Set<string>;
+	cwr: boolean | null; // null = no filter, true = only CWR
+	uses: Set<SpeciesUseKey>;
+}
+
+/**
+ * Empty/default filter state
+ */
+export const EMPTY_FILTERS: SpeciesFilters = {
+	lifeforms: new Set(),
+	cwr: null,
+	uses: new Set()
+};

@@ -1,12 +1,14 @@
 import { browser } from '$app/environment';
 import type { CacheEntry } from '$lib/types/species';
 
-const CACHE_VERSION = 'v1';
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 /**
- * Generic cache manager with localStorage persistence, TTL, and versioning.
+ * Generic cache manager with localStorage persistence and TTL.
  * SSR-safe implementation that only uses localStorage in browser context.
+ *
+ * Note: Cache invalidation is handled by using content-hashed filenames as keys.
+ * When file content changes, its hash changes, creating a new cache key automatically.
  */
 export class CacheManager<T> {
 	constructor(private prefix: string) {}
@@ -23,12 +25,6 @@ export class CacheManager<T> {
 
 			const entry: CacheEntry<T> = JSON.parse(cached);
 
-			// Check version - invalidate if version changed
-			if (entry.version !== CACHE_VERSION) {
-				this.remove(key);
-				return null;
-			}
-
 			// Check expiration - invalidate if expired
 			if (Date.now() - entry.timestamp > CACHE_TTL) {
 				this.remove(key);
@@ -43,7 +39,7 @@ export class CacheManager<T> {
 	}
 
 	/**
-	 * Store data in cache with timestamp and version
+	 * Store data in cache with timestamp
 	 */
 	set(key: string, data: T): void {
 		if (!browser) return;
@@ -51,8 +47,7 @@ export class CacheManager<T> {
 		try {
 			const entry: CacheEntry<T> = {
 				data,
-				timestamp: Date.now(),
-				version: CACHE_VERSION
+				timestamp: Date.now()
 			};
 			localStorage.setItem(`${this.prefix}_${key}`, JSON.stringify(entry));
 		} catch (err) {

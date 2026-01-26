@@ -12,14 +12,24 @@
  * Input:
  *   - data/1.geo_distr_taxa.csv (55 MB, 376K rows)
  *   - data/3.WCFP.xlsx (for enrichment: genus, lifeform, uses, cwr, cultivated)
- * Output: static/data/species/*.json (238 files, ~50-200 KB each)
+ * Output: static/data/species/{region}.{hash}.json + manifest.json
  */
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { parse } from 'csv-parse';
 import XLSX from 'xlsx';
+
+/**
+ * Generate an 8-character content hash for cache busting.
+ * @param {string} content - The content to hash
+ * @returns {string} 8-character hex hash
+ */
+function generateHash(content) {
+	return crypto.createHash('md5').update(content).digest('hex').slice(0, 8);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,22 +38,7 @@ const INPUT_CSV = path.join(__dirname, '../data/1.geo_distr_taxa.csv');
 const INPUT_XLSX = path.join(__dirname, '../data/3.WCFP.xlsx');
 const OUTPUT_DIR = path.join(__dirname, '../static/data/species');
 const INDEX_FILE = path.join(OUTPUT_DIR, 'wcfp-ids-index.json');
-
-// WCFP.xlsx column mapping for uses (columns C-F, H-M)
-// Note: Column G (HumanFood) is intentionally excluded
-const USE_COLUMNS = {
-	AnimalFood: 'C',
-	EnvironmentalUses: 'D',
-	Fuels: 'E',
-	GeneSources: 'F',
-	// G = HumanFood (excluded)
-	InvertebrateFood: 'H',
-	Materials: 'I',
-	Medicines: 'J',
-	Poisons: 'K',
-	SocialUses: 'L',
-	Total: 'M'
-};
+const MANIFEST_FILE = path.join(OUTPUT_DIR, 'manifest.json');
 
 // Statistics
 let totalRows = 0;
@@ -170,15 +165,44 @@ fs.createReadStream(INPUT_CSV)
 		console.log(`   Total rows: ${totalRows.toLocaleString()}`);
 		console.log(`   Unique regions: ${regionMap.size}`);
 
-		console.log(`\n💾 Writing JSON files...`);
+		// Clean old species JSON files (non-hashed and old hashed files)
+		console.log(`\n🧹 Cleaning old species files...`);
+		const existingFiles = fs.readdirSync(OUTPUT_DIR);
+		let deletedCount = 0;
+		for (const file of existingFiles) {
+			// Delete all .json files except special files (index, manifest)
+			if (file.endsWith('.json') && file !== 'wcfp-ids-index.json' && file !== 'manifest.json') {
+				fs.unlinkSync(path.join(OUTPUT_DIR, file));
+				deletedCount++;
+			}
+		}
+		console.log(`   Deleted ${deletedCount} old files`);
 
-		// Write each region to its own JSON file
+		console.log(`\n💾 Writing JSON files with content hashes...`);
+
+		// Manifest to track region -> hashed filename mappings
+		const manifest = {
+			generated: Date.now(),
+			files: {}
+		};
+
+		// Write each region to its own hashed JSON file
 		for (const [region, species] of regionMap.entries()) {
-			const filename = sanitizeFilename(region);
-			const filepath = path.join(OUTPUT_DIR, `${filename}.json`);
+			const sanitized = sanitizeFilename(region);
 
-			// Write JSON (no whitespace to minimize file size)
-			fs.writeFileSync(filepath, JSON.stringify(species));
+			// Generate JSON content first (no whitespace to minimize file size)
+			const content = JSON.stringify(species);
+
+			// Compute content hash
+			const hash = generateHash(content);
+
+			// Write file with hashed name: {region}.{hash}.json
+			const hashedFilename = `${sanitized}.${hash}.json`;
+			const filepath = path.join(OUTPUT_DIR, hashedFilename);
+			fs.writeFileSync(filepath, content);
+
+			// Track mapping in manifest
+			manifest.files[sanitized] = hashedFilename;
 
 			regionsProcessed++;
 
@@ -188,6 +212,10 @@ fs.createReadStream(INPUT_CSV)
 			}
 		}
 
+		// Write manifest.json
+		fs.writeFileSync(MANIFEST_FILE, JSON.stringify(manifest, null, 2));
+		const manifestSizeKb = (fs.statSync(MANIFEST_FILE).size / 1024).toFixed(2);
+
 		// Write WCFP_ID index (sorted for deterministic output)
 		const indexArray = Array.from(wcfpIdsSet).sort((a, b) => a - b);
 		fs.writeFileSync(INDEX_FILE, JSON.stringify(indexArray));
@@ -195,6 +223,9 @@ fs.createReadStream(INPUT_CSV)
 
 		console.log(`\n\n✅ Success!`);
 		console.log(`   Files created: ${regionsProcessed}`);
+		console.log(
+			`   Manifest: ${Object.keys(manifest.files).length} regions (${manifestSizeKb} KB)`
+		);
 		console.log(
 			`   Index: ${wcfpIdsSet.size.toLocaleString()} unique WCFP_IDs (${indexSizeKb} KB)`
 		);
@@ -210,9 +241,10 @@ fs.createReadStream(INPUT_CSV)
 		console.log(`   Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
 		console.log(`   Average per file: ${(totalSize / files.length / 1024).toFixed(2)} KB`);
 
-		// Show sample files
+		// Show sample files (hashed species files only)
 		console.log(`\n📝 Sample files created:`);
-		files.slice(0, 5).forEach((file) => {
+		const sampleFiles = files.filter((f) => f.match(/\.[a-f0-9]{8}\.json$/)).slice(0, 5);
+		sampleFiles.forEach((file) => {
 			const stats = fs.statSync(path.join(OUTPUT_DIR, file));
 			console.log(`   - ${file} (${(stats.size / 1024).toFixed(2)} KB)`);
 		});

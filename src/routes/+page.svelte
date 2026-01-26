@@ -31,10 +31,15 @@
 	// Derived: is mobile based on container width
 	let isMobile = $derived(containerWidth < MOBILE_BREAKPOINT);
 
-	// Load GeoJSON on mount
+	// Load GeoJSON and preload species manifest in parallel on mount
 	onMount(async () => {
 		try {
-			const response = await fetch('/data/level3_merged_wcfp.geojson');
+			// Fetch GeoJSON and preload species manifest in parallel
+			const [response] = await Promise.all([
+				fetch('/data/level3_merged_wcfp.geojson'),
+				speciesProvider.preload() // Preload manifest so region clicks are fast
+			]);
+
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}

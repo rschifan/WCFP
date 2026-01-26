@@ -13,6 +13,7 @@
 	 * - Error handling and loading states
 	 */
 
+	import { onMount } from 'svelte';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
 	import { TaxonomyMapView } from '$lib/components/map';
@@ -31,10 +32,15 @@
 
 	const distributionService = createSpatialDistributionService(speciesProvider);
 	setSpatialDistributionService(distributionService);
+
+	// Preload species manifest for faster region lookups
+	onMount(() => {
+		speciesProvider.preload();
+	});
 </script>
 
 <svelte:head>
-	<title>Taxonomy Spatial Distribution | Plant Explorer</title>
+	<title>World Checklist of Food Plants</title>
 </svelte:head>
 
 <div class="flex h-screen w-screen flex-col overflow-hidden">

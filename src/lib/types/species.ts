@@ -43,10 +43,18 @@ export interface RegionStats {
 }
 
 /**
- * Cache entry with versioning and TTL
+ * Cache entry with TTL
  */
 export interface CacheEntry<T> {
 	data: T;
 	timestamp: number;
-	version: string;
+}
+
+/**
+ * Manifest for content-hashed species data files.
+ * Maps region names to their hashed filenames.
+ */
+export interface SpeciesManifest {
+	generated: number;
+	files: Record<string, string>;
 }

@@ -17,6 +17,7 @@
 	import type { FeatureCollection } from 'geojson';
 	import MapComponent from '../Map.svelte';
 	import Legend from '../Legend.svelte';
+	import { NO_DATA_COLOR } from '$lib/constants/map';
 
 	interface Props {
 		/** GeoJSON feature collection with region data */
@@ -60,9 +61,6 @@
 		legendSubtitle,
 		autoFitBounds = true
 	}: Props = $props();
-
-	// Gray color for regions with no data
-	const NO_DATA_COLOR = '#d1d5db'; // Tailwind gray-300
 
 	// State
 	let mapInstance = $state<MapLibreMapType | null>(null);
@@ -468,7 +466,9 @@
 			if (e.features?.[0] && onRegionClick) {
 				const count = e.features[0].properties?.unique_count || 0;
 				if (count === 0) return; // Ignore clicks on no-data regions
-				const regionName = e.features[0].properties?.LEVEL3_NAM;
+				// Use 'area' for data loading (matches JSON file names), fall back to LEVEL3_NAM
+				const regionName =
+					e.features[0].properties?.area || e.features[0].properties?.LEVEL3_NAM;
 				if (regionName) {
 					onRegionClick(regionName);
 				}

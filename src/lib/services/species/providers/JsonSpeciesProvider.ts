@@ -1,5 +1,5 @@
 import type { SpeciesDataProvider } from '../SpeciesDataProvider';
-import type { Species, RegionStats } from '$lib/types/species';
+import type { Species, RegionStats, SpeciesManifest } from '$lib/types/species';
 import { CacheManager } from '../../cache/CacheManager';
 import { sanitizeFilename } from '$lib/utils/strings';
 import { ServiceError, ServiceErrorCode } from '../../errors';
@@ -9,6 +9,8 @@ import { ServiceError, ServiceErrorCode } from '../../errors';
  * Loads individual JSON files per region on-demand from static storage.
  *
  * Features:
+ * - Content-hashed filenames: Files are named {region}.{hash}.json for automatic cache invalidation
+ * - Manifest-based lookup: Resolves region names to hashed filenames via manifest.json
  * - Lazy loading: Only downloads data when needed
  * - Two-tier caching: In-memory (fast) + localStorage (persistent)
  * - LRU eviction: Prevents unbounded memory growth
@@ -20,23 +22,80 @@ export class JsonSpeciesProvider implements SpeciesDataProvider {
 	private readonly baseUrl = '/data/species';
 	private readonly MAX_MEMORY_CACHE = 50;
 
+	// Manifest for resolving region names to hashed filenames
+	private manifest: SpeciesManifest | null = null;
+	private manifestPromise: Promise<SpeciesManifest> | null = null;
+
 	async preload(): Promise<void> {
-		// No preloading needed for JSON provider
-		// Data is loaded on-demand when regions are clicked
+		// Preload the manifest so region lookups don't wait for it
+		await this.loadManifest();
 	}
 
+	/**
+	 * Load the manifest file that maps region names to hashed filenames.
+	 * Uses singleton pattern: only fetches once, subsequent calls return cached promise.
+	 */
+	private async loadManifest(): Promise<SpeciesManifest> {
+		if (this.manifest) return this.manifest;
+		if (this.manifestPromise) return this.manifestPromise;
+
+		this.manifestPromise = fetch(`${this.baseUrl}/manifest.json`)
+			.then((response) => {
+				if (!response.ok) {
+					throw new ServiceError(
+						ServiceErrorCode.NETWORK_ERROR,
+						`Failed to load species manifest: HTTP ${response.status}`,
+						{ status: response.status }
+					);
+				}
+				return response.json();
+			})
+			.then((manifest: SpeciesManifest) => {
+				this.manifest = manifest;
+				return manifest;
+			})
+			.catch((err) => {
+				// Reset promise so we can retry
+				this.manifestPromise = null;
+				throw err;
+			});
+
+		return this.manifestPromise;
+	}
+
+	/**
+	 * Get cached data synchronously (if available).
+	 * Only works if manifest is already loaded; returns null if manifest not yet fetched.
+	 *
+	 * @param regionName - Region name to look up
+	 * @returns Species array if cached, null otherwise
+	 */
 	getCachedData(regionName: string): Species[] | null {
+		// Can't resolve filename without manifest
+		if (!this.manifest) return null;
+
+		const sanitized = sanitizeFilename(regionName);
+		const filename = this.manifest.files[sanitized];
+		if (!filename) return null;
+
+		return this.getCachedDataByFilename(filename);
+	}
+
+	/**
+	 * Get cached data by hashed filename (the cache key).
+	 */
+	private getCachedDataByFilename(filename: string): Species[] | null {
 		// Check memory cache first (fastest)
-		if (this.memoryCache.has(regionName)) {
-			const data = this.memoryCache.get(regionName)!;
+		if (this.memoryCache.has(filename)) {
+			const data = this.memoryCache.get(filename)!;
 			// Move to end for LRU (delete and re-add to update access order)
-			this.memoryCache.delete(regionName);
-			this.memoryCache.set(regionName, data);
+			this.memoryCache.delete(filename);
+			this.memoryCache.set(filename, data);
 			return data;
 		}
 
 		// Check localStorage (slower but persistent)
-		return this.persistentCache.get(regionName);
+		return this.persistentCache.get(filename);
 	}
 
 	/**
@@ -55,33 +114,45 @@ export class JsonSpeciesProvider implements SpeciesDataProvider {
 	 * @throws {ServiceError} If region not found or network/data error
 	 */
 	async getSpeciesByRegion(regionName: string): Promise<Species[]> {
-		// Try cache first (optimistic update)
-		const cached = this.getCachedData(regionName);
+		// Load manifest to resolve region -> hashed filename
+		const manifest = await this.loadManifest();
+		const sanitized = sanitizeFilename(regionName);
+		const filename = manifest.files[sanitized];
+
+		if (!filename) {
+			throw new ServiceError(
+				ServiceErrorCode.DATA_NOT_FOUND,
+				`No species data found for region: ${regionName}`,
+				{ regionName, sanitized }
+			);
+		}
+
+		// Use hashed filename as cache key (guarantees freshness when content changes)
+		const cached = this.getCachedDataByFilename(filename);
 		if (cached) {
 			return cached;
 		}
 
 		// Fetch from server
-		const filename = sanitizeFilename(regionName);
-		const url = `${this.baseUrl}/${filename}.json`;
+		const url = `${this.baseUrl}/${filename}`;
 
 		try {
 			const response = await fetch(url);
 
 			if (!response.ok) {
 				if (response.status === 404) {
-					// Expected: region has no data file
+					// Manifest listed file but it's missing - unexpected
 					throw new ServiceError(
 						ServiceErrorCode.DATA_NOT_FOUND,
-						`No species data found for region: ${regionName}`,
-						{ regionName, status: 404 }
+						`Species data file not found: ${filename}`,
+						{ regionName, filename, status: 404 }
 					);
 				}
 				// Network/server error
 				throw new ServiceError(
 					ServiceErrorCode.NETWORK_ERROR,
 					`HTTP ${response.status}: ${response.statusText}`,
-					{ regionName, status: response.status, statusText: response.statusText }
+					{ regionName, filename, status: response.status, statusText: response.statusText }
 				);
 			}
 
@@ -93,7 +164,7 @@ export class JsonSpeciesProvider implements SpeciesDataProvider {
 				throw new ServiceError(
 					ServiceErrorCode.INVALID_DATA,
 					`Failed to parse JSON response for region: ${regionName}`,
-					{ regionName, parseError }
+					{ regionName, filename, parseError }
 				);
 			}
 
@@ -102,13 +173,13 @@ export class JsonSpeciesProvider implements SpeciesDataProvider {
 				throw new ServiceError(
 					ServiceErrorCode.INVALID_DATA,
 					'Invalid data format: expected array of species',
-					{ regionName, dataType: typeof data }
+					{ regionName, filename, dataType: typeof data }
 				);
 			}
 
-			// Cache the result
-			this.addToMemoryCache(regionName, data);
-			this.persistentCache.set(regionName, data);
+			// Cache using hashed filename as key (automatic invalidation when content changes)
+			this.addToMemoryCache(filename, data);
+			this.persistentCache.set(filename, data);
 
 			return data;
 		} catch (err) {
@@ -122,7 +193,7 @@ export class JsonSpeciesProvider implements SpeciesDataProvider {
 			throw new ServiceError(
 				ServiceErrorCode.UNKNOWN_ERROR,
 				`Failed to load species for "${regionName}": ${message}`,
-				{ regionName, originalError: err }
+				{ regionName, filename, originalError: err }
 			);
 		}
 	}

@@ -7,7 +7,7 @@
 >
 	<div class="container mx-auto text-center">
 		<p class="text-sm opacity-75">
-			&copy; {currentYear} Explorer. All rights reserved.
+			&copy; {currentYear} World Checklist of Food Plants. All rights reserved.
 		</p>
 	</div>
 </footer>

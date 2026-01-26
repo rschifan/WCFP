@@ -33,6 +33,32 @@
 	const distributionService = createSpatialDistributionService(speciesProvider);
 	setSpatialDistributionService(distributionService);
 
+	// Mobile breakpoint
+	const MOBILE_BREAKPOINT = 768;
+
+	// State for responsive behavior
+	// Initialize with a large value to assume desktop until measured (prevents mobile panel flash on load)
+	let containerWidth = $state(9999);
+	let containerEl = $state<HTMLElement | null>(null);
+
+	// Derived: is mobile based on container width
+	// Only consider mobile if we've actually measured (containerWidth < 9999 means ResizeObserver has fired)
+	const isMobile = $derived(containerWidth < 9999 && containerWidth < MOBILE_BREAKPOINT);
+
+	// ResizeObserver for container width
+	$effect(() => {
+		if (!containerEl) return;
+
+		const observer = new ResizeObserver((entries) => {
+			for (const entry of entries) {
+				containerWidth = entry.contentRect.width;
+			}
+		});
+
+		observer.observe(containerEl);
+		return () => observer.disconnect();
+	});
+
 	// Preload species manifest for faster region lookups
 	onMount(() => {
 		speciesProvider.preload();
@@ -48,12 +74,16 @@
 		<TopBar />
 	</header>
 
-	<main class="relative min-h-0 flex-1 overflow-hidden">
+	<main
+		bind:this={containerEl}
+		class="relative min-h-0 flex-1 overflow-hidden"
+	>
 		<TaxonomyMapView
 			taxonomyTree={data.taxonomyTree}
 			families={data.families}
 			geoJSON={data.geoJSON}
 			wcfpIdsWithSpatialData={data.wcfpIdsWithSpatialData}
+			{isMobile}
 			class="h-full w-full"
 		/>
 	</main>

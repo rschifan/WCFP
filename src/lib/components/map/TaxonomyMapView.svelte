@@ -22,7 +22,7 @@
 		TaxonomySchema,
 		TaxonomyNodeNormalized
 	} from '$lib/types/taxonomy';
-	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
+	import TaxonomyPanel from './TaxonomyPanel.svelte';
 	import ChoroplethMap from './ChoroplethMap.svelte';
 	import { useSpatialDistributionService } from '$lib/services/spatial-distribution';
 	import { normalizeTaxonomyTree } from '$lib/utils/taxonomy/normalize';
@@ -53,6 +53,8 @@
 		geoJSON: FeatureCollection;
 		/** Pre-computed WCFP_IDs with spatial data */
 		wcfpIdsWithSpatialData: Set<number>;
+		/** Whether the view is in mobile mode */
+		isMobile?: boolean;
 		/** Optional CSS class */
 		class?: string;
 	}
@@ -66,6 +68,7 @@
 		families,
 		geoJSON,
 		wcfpIdsWithSpatialData,
+		isMobile: isMobileProp,
 		class: className = ''
 	}: Props = $props();
 
@@ -112,8 +115,9 @@
 	// Derived State (Svelte 5 best practice: prefer $derived over $effect for computed values)
 	// ============================================================================
 
-	// Detect if mobile view
-	const isMobile = $derived(containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT);
+	// Detect if mobile view - use prop if provided, otherwise determine internally
+	const isMobileInternal = $derived(containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT);
+	const isMobile = $derived(isMobileProp ?? isMobileInternal);
 
 	// Extract TaxonomyNode from normalized node (must be declared before showMap which depends on it)
 	const selectedNode = $derived.by(() => {
@@ -123,8 +127,8 @@
 	});
 
 	// View visibility - derived from isMobile and selectedNode (no $effect needed!)
+	// On desktop, map is always visible. On mobile, map is visible when a node is selected.
 	const showMap = $derived(isMobile ? !!selectedNode : true);
-	const showTaxonomy = $derived(true); // Always visible
 
 	// Convenience getters from fetch state (derived for type safety)
 	const loading = $derived(fetchState.status === 'loading');
@@ -139,13 +143,22 @@
 		fetchState.status === 'success' ? fetchState.hasMatches : false
 	);
 
+	// Check if distribution data has only one unique value (hide legend in this case)
+	const hasOnlyOneUniqueValue = $derived.by(() => {
+		if (distributionData.size === 0) return false;
+		const values = Array.from(distributionData.values());
+		const uniqueValues = new Set(values);
+		return uniqueValues.size === 1;
+	});
+
 	// ============================================================================
 	// Effects (only for side effects that can't be expressed as derived values)
 	// ============================================================================
 
 	// Track container width for responsive behavior (legitimate side effect)
+	// Only needed if isMobile prop is not provided
 	$effect(() => {
-		if (!containerElement) return;
+		if (isMobileProp !== undefined || !containerElement) return;
 
 		const resizeObserver = new ResizeObserver((entries) => {
 			for (const entry of entries) {
@@ -342,19 +355,17 @@
 </script>
 
 <div class="relative h-full w-full bg-white {className}" bind:this={containerElement}>
-	<!-- Desktop: Split view layout (taxonomy left, map right) -->
 	{#if !isMobile}
+		<!-- Desktop: Split view layout (taxonomy left, map right) -->
 		<div class="flex h-full w-full">
-			<!-- Taxonomy Panel - Left side, fixed width -->
-			<div class="w-96 flex-shrink-0 overflow-hidden border-r border-slate-200">
-				<TaxonomyList
-					data={normalizedData}
-					{startFromId}
-					onNodeSelect={handleNodeClick}
-					{isNodeClickable}
-					class="h-full w-full"
-				/>
-			</div>
+			<TaxonomyPanel
+				{isMobile}
+				selectedNormalizedNode={selectedNormalizedNode}
+				{normalizedData}
+				{startFromId}
+				onNodeSelect={handleNodeClick}
+				{isNodeClickable}
+			/>
 
 			<!-- Map View - Right side, flexible width -->
 			<div class="min-w-0 flex-1 overflow-hidden bg-white">
@@ -391,6 +402,7 @@
 						{distributionData}
 						colors={{ low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' }}
 						hoverColor="#14532d"
+						showLegend={!hasOnlyOneUniqueValue}
 					/>
 				{:else if selectedNode}
 					<div class="flex h-full items-center justify-center bg-slate-50">
@@ -404,7 +416,7 @@
 						<div class="text-center text-slate-500">
 							<p class="text-lg font-semibold">Select a taxonomy node</p>
 							<p class="mt-2 text-sm">
-								Click on a node in the tree to view its spatial distribution
+								Click on a node in the tree to view its geographical distribution
 							</p>
 						</div>
 					</div>
@@ -412,74 +424,66 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Mobile: Full screen taxonomy initially, then split view when node selected -->
+		<!-- Mobile: Map always visible, TaxonomyPanel as fixed overlay (handled by TaxonomyPanelMobile) -->
 		<div class="relative h-full w-full">
-			<!-- Taxonomy Panel - Full screen initially, minimized left when node selected -->
-			<div
-				class="absolute left-0 h-full overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out"
-				style:width={showMap && selectedNode ? '40%' : '100%'}
-				style:z-index={showMap && selectedNode ? '10' : '20'}
-			>
-				<TaxonomyList
-					data={normalizedData}
-					{startFromId}
-					onNodeSelect={handleNodeClick}
-					{isNodeClickable}
-					class="h-full w-full"
-				/>
+			<!-- Map View - Always visible on mobile -->
+			<div class="absolute inset-0 h-full w-full overflow-hidden bg-white">
+				{#if error}
+					<div class="flex h-full items-center justify-center">
+						<div class="rounded-lg bg-red-100 p-6 text-red-800 shadow-lg">
+							<p class="font-semibold">Error</p>
+							<p class="mt-2 text-sm">{error}</p>
+						</div>
+					</div>
+				{:else if loading}
+					<div class="flex h-full items-center justify-center bg-white/80">
+						<div class="flex items-center gap-3 text-slate-600">
+							<span
+								class="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500"
+							></span>
+							<span>Loading distribution...</span>
+						</div>
+					</div>
+				{:else if selectedNode && hasTargetIdsForSelection && !hasMatchesForSelection}
+					<div class="flex h-full items-center justify-center bg-slate-50">
+						<div class="max-w-md px-4 text-center text-slate-500">
+							<p class="text-lg font-semibold">No distribution data available</p>
+							<p class="mt-2 text-sm">
+								The selected taxon has valid WCFP_IDs, but none of them appear in the geographic
+								distribution dataset. This likely means there is no coverage for this taxon in
+								<code>1.geo_distr_taxa.csv</code>.
+							</p>
+						</div>
+					</div>
+				{:else if selectedNode && distributionData.size > 0}
+					<ChoroplethMap
+						{geoJSON}
+						{distributionData}
+						colors={{ low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' }}
+						hoverColor="#14532d"
+						showLegend={!hasOnlyOneUniqueValue}
+					/>
+				{:else}
+					<div class="flex h-full items-center justify-center bg-slate-50">
+						<div class="text-center text-slate-500">
+							<p class="text-lg font-semibold">Select a taxonomy node</p>
+							<p class="mt-2 text-sm">
+								Click on a node in the tree to view its geographical distribution
+							</p>
+						</div>
+					</div>
+				{/if}
 			</div>
 
-			<!-- Map View - Appears on right when node selected -->
-			{#if showMap && selectedNode}
-				<div
-					class="absolute right-0 h-full overflow-hidden bg-white transition-all duration-300 ease-in-out"
-					style:width="60%"
-					style:z-index="10"
-				>
-					{#if error}
-						<div class="flex h-full items-center justify-center">
-							<div class="rounded-lg bg-red-100 p-6 text-red-800 shadow-lg">
-								<p class="font-semibold">Error</p>
-								<p class="mt-2 text-sm">{error}</p>
-							</div>
-						</div>
-					{:else if loading}
-						<div class="flex h-full items-center justify-center bg-white/80">
-							<div class="flex items-center gap-3 text-slate-600">
-								<span
-									class="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500"
-								></span>
-								<span>Loading distribution...</span>
-							</div>
-						</div>
-					{:else if hasTargetIdsForSelection && !hasMatchesForSelection}
-						<div class="flex h-full items-center justify-center bg-slate-50">
-							<div class="max-w-md px-4 text-center text-slate-500">
-								<p class="text-lg font-semibold">No distribution data available</p>
-								<p class="mt-2 text-sm">
-									The selected taxon has valid WCFP_IDs, but none of them appear in the geographic
-									distribution dataset. This likely means there is no coverage for this taxon in
-									<code>1.geo_distr_taxa.csv</code>.
-								</p>
-							</div>
-						</div>
-					{:else if distributionData.size > 0}
-						<ChoroplethMap
-							{geoJSON}
-							{distributionData}
-							colors={{ low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' }}
-							hoverColor="#14532d"
-						/>
-					{:else}
-						<div class="flex h-full items-center justify-center bg-slate-50">
-							<div class="text-center text-slate-500">
-								<p class="text-lg font-semibold">Loading distribution...</p>
-								<p class="mt-2 text-sm">Please wait while we fetch the data</p>
-							</div>
-						</div>
-					{/if}
-				</div>
-			{/if}
+			<!-- Taxonomy Panel - Fixed bottom sheet overlay -->
+			<TaxonomyPanel
+				{isMobile}
+				selectedNormalizedNode={selectedNormalizedNode}
+				{normalizedData}
+				{startFromId}
+				onNodeSelect={handleNodeClick}
+				{isNodeClickable}
+			/>
 		</div>
 	{/if}
 </div>

@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
-	import { slide } from 'svelte/transition';
-	import { getRankColor, getRankLabel } from '$lib/constants/tree';
-	import { Search, X, SquareArrowOutUpRight } from 'lucide-svelte';
+	import { getRankLabel } from '$lib/constants/tree';
+	import { Search, X, SquareArrowOutUpRight, ChevronRight } from 'lucide-svelte';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
 	import { TaxonomySearchIndex } from '$lib/utils/taxonomy/search';
 
@@ -87,6 +86,7 @@
 		return { childrenById, expanded, hasMatches: true };
 	});
 
+	// Expand nodes on mount and when rootId changes
 	$effect(() => {
 		const root = rootId;
 		expandedNodes.clear();
@@ -180,23 +180,22 @@
 {/snippet}
 
 {#snippet nodeItem(nodeId: string, depth: number)}
-	{@const node = nodesById.get(nodeId)}
-	{#if node}
-		{@const childIds = getChildrenIds(nodeId)}
-		{@const hasKids = childIds.length > 0}
-		{@const expanded = isExpandedEffective(nodeId)}
-		{@const selected = selectedId === nodeId}
-		{@const rankColor = getRankColor(node.rank)}
-		{@const isClickable = isNodeClickable
-			? (() => {
-					try {
-						return isNodeClickable(node);
-					} catch (err) {
-						console.warn('[TaxonomyList] Error checking node clickability:', err);
-						return false;
-					}
-				})()
-			: false}
+		{@const node = nodesById.get(nodeId)}
+		{#if node}
+			{@const childIds = getChildrenIds(nodeId)}
+			{@const hasKids = childIds.length > 0}
+			{@const expanded = isExpandedEffective(nodeId)}
+			{@const selected = selectedId === nodeId}
+			{@const isClickable = isNodeClickable
+				? (() => {
+						try {
+							return isNodeClickable(node);
+						} catch (err) {
+							console.warn('[TaxonomyList] Error checking node clickability:', err);
+							return false;
+						}
+					})()
+				: false}
 
 		<li
 			class="m-0 list-none p-0"
@@ -205,15 +204,14 @@
 			aria-selected={selected}
 		>
 			<div
-				class="flex w-full items-start gap-2 px-2 py-2 transition-colors duration-150 {hasKids
-					? 'hover:bg-black/[0.04] active:bg-black/[0.08]'
-					: ''} {selected ? 'bg-blue-500/10' : ''}"
-				style:padding-left="{12 + depth * 16}px"
+				class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1 transition-colors duration-150 {hasKids
+					? 'hover:bg-slate-100'
+					: ''} {selected ? 'bg-slate-50' : ''}"
 			>
 				<!-- Navigation Button (expand/collapse) -->
 				<button
 					type="button"
-					class="relative z-10 flex min-w-0 flex-1 items-start gap-2 border-none bg-transparent text-left {hasKids
+					class="group relative z-10 flex min-w-0 flex-1 items-center gap-1.5 border-none bg-transparent text-left {hasKids
 						? 'cursor-pointer'
 						: 'cursor-default'}"
 					onclick={(event) => {
@@ -226,62 +224,39 @@
 					}}
 					onkeydown={(e) => handleKeyDown(e, nodeId, hasKids)}
 					aria-disabled={!hasKids || isSearching}
+					aria-expanded={hasKids ? expanded : undefined}
 				>
 					<!-- Expand/Collapse Chevron -->
-					<div
-						class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400 {!hasKids
-							? 'invisible'
-							: ''}"
-					>
-						<svg
-							class="h-4 w-4 transition-transform duration-200 motion-reduce:transition-none {expanded
-								? 'rotate-90'
-								: ''}"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2.5"
-						>
-							<polyline points="9 18 15 12 9 6" />
-						</svg>
-					</div>
+					<ChevronRight
+						class="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 {expanded
+							? 'rotate-90'
+							: ''} {!hasKids ? 'invisible' : ''}"
+					/>
 
 					<!-- Main Content -->
-					<div class="min-w-0 flex-1">
-						<!-- First Line: Name with Rank Dot -->
-						<div class="mb-1 flex items-center gap-2">
-							<span class="h-2.5 w-2.5 shrink-0 rounded-full" style:background-color={rankColor}
-							></span>
-							<span class="truncate text-sm font-semibold text-gray-900">
-								{#if isSearching}
-									{@render highlightedText(node.name, debouncedQuery)}
-								{:else}
-									{node.name}
-								{/if}
-							</span>
-						</div>
+					<span class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">
+						{#if isSearching}
+							{@render highlightedText(node.name, debouncedQuery)}
+						{:else}
+							{node.name}
+						{/if}
+					</span>
 
-						<!-- Second Line: Rank Label and Actions -->
-						<div class="ml-4.5 flex items-center gap-2">
-							<span class="text-xs text-gray-500 capitalize">
-								{getRankLabel(node.rank)}
-							</span>
-							{#if hasKids}
-								<span class="text-xs text-gray-400">•</span>
-								<span class="text-xs text-gray-500">
-									{childIds.length}
-									{childIds.length === 1 ? 'child' : 'children'}
-								</span>
-							{/if}
-						</div>
-					</div>
+					<!-- Count Badge (if has children) -->
+					{#if hasKids}
+						<span
+							class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 group-hover:bg-slate-300"
+						>
+							{childIds.length}
+						</span>
+					{/if}
 				</button>
 
 				<!-- Map Icon Button (if clickable) - separate from navigation button -->
 				{#if isClickable}
 					<button
 						type="button"
-						class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-gray-600 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-500 active:bg-gray-200"
+						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-500 active:bg-slate-200"
 						title="View spatial distribution map"
 						aria-label="View spatial distribution map for {node.name}"
 						onclick={(event) => {
@@ -302,14 +277,16 @@
 			</div>
 
 			{#if hasKids && expanded}
-				<ul class="m-0 list-none p-0" role="group" transition:slide={{ duration: 200 }}>
-					{#each childIds as childId (childId)}
-						{@render nodeItem(childId, depth + 1)}
-					{/each}
-				</ul>
+				<div class="ml-5 border-l-2 border-slate-200 pl-4">
+					<ul class="m-0 list-none p-0" role="group">
+						{#each childIds as childId (childId)}
+							{@render nodeItem(childId, depth + 1)}
+						{/each}
+					</ul>
+				</div>
 			{/if}
 		</li>
-	{/if}
+		{/if}
 {/snippet}
 
 <div class="flex h-full flex-col overflow-hidden bg-slate-50 {className}">
@@ -341,7 +318,7 @@
 		</div>
 	{:else}
 		<ul
-			class="m-0 flex-1 list-none overflow-x-hidden overflow-y-auto py-1"
+			class="m-0 flex-1 list-none overflow-x-hidden overflow-y-auto px-2 pb-8"
 			role="tree"
 			aria-label="Taxonomy hierarchy"
 		>

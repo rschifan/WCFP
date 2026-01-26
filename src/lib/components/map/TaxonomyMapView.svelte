@@ -119,23 +119,32 @@
 	const isMobileInternal = $derived(containerWidth > 0 && containerWidth < MOBILE_BREAKPOINT);
 	const isMobile = $derived(isMobileProp ?? isMobileInternal);
 
-	// Extract TaxonomyNode from normalized node (must be declared before showMap which depends on it)
+	// Extract TaxonomyNode from normalized node
 	const selectedNode = $derived.by(() => {
 		if (!selectedNormalizedNode) return null;
 		const fullNode = findNodeByPath(taxonomyTree, selectedNormalizedNode.path);
 		return fullNode || (selectedNormalizedNode.node as unknown as TaxonomyNode);
 	});
 
-	// View visibility - derived from isMobile and selectedNode (no $effect needed!)
-	// On desktop, map is always visible. On mobile, map is visible when a node is selected.
-	const showMap = $derived(isMobile ? !!selectedNode : true);
-
 	// Convenience getters from fetch state (derived for type safety)
 	const loading = $derived(fetchState.status === 'loading');
 	const error = $derived(fetchState.status === 'error' ? fetchState.message : null);
-	const distributionData = $derived(
-		fetchState.status === 'success' ? fetchState.data : new Map<string, number>()
-	);
+	// Filter out entries with zero values to ensure coherence with ChoroplethMap
+	// (which filters out features with empty data)
+	const distributionData = $derived.by(() => {
+		if (fetchState.status !== 'success') {
+			return new Map<string, number>();
+		}
+		// Filter out entries with count = 0 to match ChoroplethMap behavior
+		const filtered = new Map<string, number>();
+		for (const [region, count] of fetchState.data.entries()) {
+			if (count > 0) {
+				filtered.set(region, count);
+			}
+		}
+		return filtered;
+	});
+	const distributionAreaCount = $derived(distributionData.size);
 	const hasTargetIdsForSelection = $derived(
 		fetchState.status !== 'idle' && 'hasTargetIds' in fetchState ? fetchState.hasTargetIds : false
 	);
@@ -365,6 +374,7 @@
 				{startFromId}
 				onNodeSelect={handleNodeClick}
 				{isNodeClickable}
+				distributionAreaCount={distributionAreaCount}
 			/>
 
 			<!-- Map View - Right side, flexible width -->
@@ -483,6 +493,7 @@
 				{startFromId}
 				onNodeSelect={handleNodeClick}
 				{isNodeClickable}
+				distributionAreaCount={distributionAreaCount}
 			/>
 		</div>
 	{/if}

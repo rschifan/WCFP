@@ -17,7 +17,6 @@
 	import type { FeatureCollection } from 'geojson';
 	import MapComponent from '../Map.svelte';
 	import Legend from '../Legend.svelte';
-	import { NO_DATA_COLOR } from '$lib/constants/map';
 
 	interface Props {
 		/** GeoJSON feature collection with region data */
@@ -72,13 +71,16 @@
 	let mapInstance = $state<MapLibreMapType | null>(null);
 	let tooltip = $state<{ x: number; y: number; name: string; count: number } | null>(null);
 	let hoveredFeatureId = $state<string | number | null>(null);
+	let currentCursor = $state<string>('default');
+	let pendingCursorUpdate: string | null = null;
+	let rafId: number | null = null;
 	let boundsFitted = $state(false);
 	let isGlobeMode = $state(false);
 
 	// Non-reactive variable for tracking selected feature (to avoid infinite loops in effects)
 	let currentSelectedFeatureId: string | number | null = null;
 
-	// Derived: Enriched GeoJSON with count data
+	// Derived: Enriched GeoJSON with count data (excluding features with empty data)
 	const enrichedGeoJSON = $derived.by(() => {
 		if (!geoJSON) {
 			return null;
@@ -91,42 +93,55 @@
 		// If distributionData is provided and not empty, use it to enrich
 		// Otherwise, use the original GeoJSON (which may already have unique_count)
 		if (hasDistributionData) {
-			// Force reactivity by reading from the Map
-			const distributionEntries = Array.from(distributionData.entries());
-
 			// Create a copy of the GeoJSON and enrich features with count data
+			// Filter out features with empty data (count = 0)
 			const enriched: FeatureCollection = {
-				type: 'FeatureCollection',
-				features: geoJSON.features.map((feature) => {
-					const regionName =
-						feature.properties?.LEVEL3_NAM || feature.properties?.area || 'Unknown';
-					const count = distributionData.get(regionName) || 0;
+				type: 'FeatureCollection' as const,
+				features: geoJSON.features
+					.map((feature) => {
+						const regionName =
+							feature.properties?.LEVEL3_NAM || feature.properties?.area || 'Unknown';
+						const count = distributionData.get(regionName) || 0;
 
-					return {
-						...feature,
-						properties: {
-							...feature.properties,
-							unique_count: count,
-							LEVEL3_NAM: regionName
-						}
-					};
-				})
+						return {
+							...feature,
+							properties: {
+								...feature.properties,
+								unique_count: count,
+								LEVEL3_NAM: regionName
+							}
+						};
+					})
+					.filter((feature) => {
+						// Only include features with data (count > 0)
+						const count = feature.properties?.unique_count || 0;
+						return count > 0;
+					})
 			};
 
 			return enriched;
 		}
 
-		// Use original GeoJSON (it already has unique_count from the data file)
-		return geoJSON;
+		// Use original GeoJSON, but filter out features with no data
+		// (it already has unique_count from the data file)
+		const filtered: FeatureCollection = {
+			type: 'FeatureCollection' as const,
+			features: geoJSON.features.filter((feature) => {
+				const count = feature.properties?.unique_count || 0;
+				return count > 0;
+			})
+		};
+		return filtered;
 	});
 
 	// Derived: Calculate min/max counts for color scale
+	// Only considers features with data since empty features are filtered out
 	const countRange = $derived.by(() => {
 		if (!enrichedGeoJSON) {
 			return { min: 0, max: 0, mid: 0 };
 		}
 
-		// Extract counts from GeoJSON features (works for both original and enriched)
+		// Extract counts from GeoJSON features (only features with data are included)
 		const counts: number[] = [];
 		for (const feature of enrichedGeoJSON.features) {
 			const count = feature.properties?.unique_count;
@@ -163,12 +178,13 @@
 
 	/**
 	 * Calculate bounding box from GeoJSON features and fit map to show all geographies.
+	 * Only includes features with data (unique_count > 0) to fit bounds to actual distribution.
 	 */
 	function fitMapToBounds() {
 		if (!mapInstance || !enrichedGeoJSON) return;
 
 		try {
-			// Calculate bounding box from all features
+			// Calculate bounding box from features with data only
 			let minLng = Infinity;
 			let minLat = Infinity;
 			let maxLng = -Infinity;
@@ -193,6 +209,7 @@
 				}
 			}
 
+			// Process all features (empty features are already filtered out in enrichedGeoJSON)
 			for (const feature of enrichedGeoJSON.features) {
 				if (feature.geometry && feature.geometry.coordinates) {
 					processCoordinates(feature.geometry.coordinates);
@@ -211,13 +228,20 @@
 				// Reset bounds fitted state before fitting
 				boundsFitted = false;
 
+				if (import.meta.env.DEV) {
+					console.log('[ChoroplethMap] Fitting bounds to features with data:', {
+						bounds: [[minLng, minLat], [maxLng, maxLat]],
+						featureCount: enrichedGeoJSON.features.length
+					});
+				}
+
 				mapInstance.fitBounds(
 					[
 						[minLng, minLat],
 						[maxLng, maxLat]
 					],
 					{
-						padding: 50, // Add padding around the bounds
+						padding: 100, // Add larger padding around the bounds
 						duration: 0, // Immediate - no animation
 						maxZoom: 10 // Don't zoom in too much
 					}
@@ -229,7 +253,10 @@
 					boundsFitted = true;
 				});
 			} else {
-				// If no valid bounds, show map immediately
+				// If no valid bounds (no features with data), show map at default view
+				if (import.meta.env.DEV) {
+					console.warn('[ChoroplethMap] No features with data found, using default view');
+				}
 				boundsFitted = true;
 			}
 		} catch (err) {
@@ -285,8 +312,8 @@
 		// 1. min === max: use a single color
 		// 2. max - min < 2: use two-stop interpolation (min and max only)
 		// 3. Otherwise: use three-stop interpolation (min, mid, max)
-		// Regions with no data (unique_count = 0) are colored gray
-		const dataColorExpression: any =
+		// Note: Features with empty data are filtered out, so we don't need to handle them here
+		const fillColorExpression: any =
 			min === max
 				? colors.mid // All regions have the same count
 				: max - min < 2 || mid === min || mid === max
@@ -313,14 +340,6 @@
 							colors.high
 						];
 
-		// Wrap in case expression: gray for no data, color scale for data
-		const fillColorExpression: any = [
-			'case',
-			['>', ['coalesce', ['get', 'unique_count'], 0], 0],
-			dataColorExpression,
-			NO_DATA_COLOR
-		];
-
 		// Add fill layer with color scale
 		mapInstance.addLayer({
 			id: 'level3-fill',
@@ -344,7 +363,7 @@
 			}
 		});
 
-		// Add hover highlight layer (only for regions with data)
+		// Add hover highlight layer (all features have data since empty ones are filtered out)
 		mapInstance.addLayer({
 			id: 'level3-hover',
 			type: 'line',
@@ -352,16 +371,7 @@
 			paint: {
 				'line-color': hoverColor,
 				'line-width': 3,
-				'line-opacity': [
-					'case',
-					[
-						'all',
-						['boolean', ['feature-state', 'hover'], false],
-						['>', ['coalesce', ['get', 'unique_count'], 0], 0]
-					],
-					1,
-					0
-				]
+				'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0]
 			}
 		});
 
@@ -435,6 +445,57 @@
 		}
 	}
 
+	// Schedule cursor update using requestAnimationFrame to prevent flickering
+	function scheduleCursorUpdate() {
+		if (rafId !== null) return; // Already scheduled
+		
+		rafId = requestAnimationFrame(() => {
+			if (!mapInstance || pendingCursorUpdate === null) {
+				rafId = null;
+				return;
+			}
+			
+			const newCursor = pendingCursorUpdate;
+			pendingCursorUpdate = null;
+			rafId = null;
+			
+			if (currentCursor !== newCursor) {
+				currentCursor = newCursor;
+				const canvas = mapInstance.getCanvas();
+				const container = mapInstance.getContainer();
+				
+				// Apply cursor to canvas (the actual interactive element)
+				if (canvas) {
+					canvas.style.cursor = newCursor;
+					canvas.style.setProperty('cursor', newCursor, 'important');
+				}
+				
+				// Also set on container
+				if (container) {
+					container.style.cursor = newCursor;
+					container.style.setProperty('cursor', newCursor, 'important');
+				}
+				
+				// Also set on the canvas container div (maplibregl-canvas-container)
+				const canvasContainer = canvas?.parentElement;
+				if (canvasContainer && canvasContainer.classList.contains('maplibregl-canvas-container')) {
+					canvasContainer.style.cursor = newCursor;
+					canvasContainer.style.setProperty('cursor', newCursor, 'important');
+				}
+				
+				if (import.meta.env.DEV) {
+					console.log('[ChoroplethMap] Cursor updated to:', newCursor, {
+						canvas: !!canvas,
+						container: !!container,
+						canvasContainer: !!canvasContainer,
+						canvasComputedStyle: canvas ? window.getComputedStyle(canvas).cursor : null,
+						containerComputedStyle: container ? window.getComputedStyle(container).cursor : null
+					});
+				}
+			}
+		});
+	}
+
 	// Set up map event handlers
 	function setupEventHandlers() {
 		if (!mapInstance) return;
@@ -447,7 +508,7 @@
 		// @ts-expect-error - MapLibre types don't fully support layer-filtered events in TypeScript
 		mapInstance.off('click', 'level3-fill');
 
-		// Add hover effects
+		// Add hover effects (all features have data since empty ones are filtered out)
 		mapInstance.on('mousemove', 'level3-fill', (e: any) => {
 			if (!mapInstance) return;
 
@@ -455,22 +516,21 @@
 				const feature = e.features[0];
 				const count = feature.properties?.unique_count || 0;
 
-				// Skip hover effects for regions with no data
-				if (count === 0) {
-					mapInstance.getCanvas().style.cursor = '';
-					tooltip = null;
-					// Clear any existing hover state
-					if (hoveredFeatureId !== null) {
-						mapInstance.setFeatureState(
-							{ source: 'level3', id: hoveredFeatureId },
-							{ hover: false }
-						);
-						hoveredFeatureId = null;
+				// All features have data (empty ones are filtered out), so always use pointer cursor
+				const desiredCursor = 'pointer';
+				
+				// Always schedule cursor update (the function will check if it changed)
+				if (currentCursor !== desiredCursor || pendingCursorUpdate !== desiredCursor) {
+					pendingCursorUpdate = desiredCursor;
+					scheduleCursorUpdate();
+					
+					if (import.meta.env.DEV) {
+						console.log('[ChoroplethMap] Scheduling cursor update:', {
+							current: currentCursor,
+							desired: desiredCursor
+						});
 					}
-					return;
 				}
-
-				mapInstance.getCanvas().style.cursor = 'pointer';
 				const newFeatureId = feature.id;
 
 				// Update hover state if feature changed
@@ -501,7 +561,11 @@
 		// Reset cursor when leaving polygons
 		mapInstance.on('mouseleave', 'level3-fill', () => {
 			if (!mapInstance) return;
-			mapInstance.getCanvas().style.cursor = '';
+			// Schedule cursor update if it changed
+			if (currentCursor !== 'default') {
+				pendingCursorUpdate = 'default';
+				scheduleCursorUpdate();
+			}
 			tooltip = null;
 
 			if (hoveredFeatureId !== null) {
@@ -510,11 +574,9 @@
 			}
 		});
 
-		// Handle click to trigger region selection (only for regions with data)
+		// Handle click to trigger region selection (all features have data since empty ones are filtered out)
 		mapInstance.on('click', 'level3-fill', (e: any) => {
 			if (e.features?.[0] && onRegionClick) {
-				const count = e.features[0].properties?.unique_count || 0;
-				if (count === 0) return; // Ignore clicks on no-data regions
 				// Use 'area' for data loading (matches JSON file names), fall back to LEVEL3_NAM
 				const regionName =
 					e.features[0].properties?.area || e.features[0].properties?.LEVEL3_NAM;
@@ -617,9 +679,5 @@
 </div>
 
 <style>
-	/* Force cursor to work on MapLibre canvas */
-	:global(.maplibregl-canvas-container.maplibregl-interactive),
-	:global(.maplibregl-canvas-container.maplibregl-interactive:hover) {
-		cursor: inherit !important;
-	}
+	/* Cursor is controlled by JavaScript - no CSS override needed */
 </style>

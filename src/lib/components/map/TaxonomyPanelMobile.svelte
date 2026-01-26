@@ -5,6 +5,7 @@
 	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
 	import TaxonomySearchFilterBar from './TaxonomySearchFilterBar.svelte';
 	import { ArrowLeft, ChevronDown } from 'lucide-svelte';
+	import { formatCount } from '$lib/utils/format';
 
 	interface Props {
 		selectedNormalizedNode: { node: TaxonomyNodeNormalized; path: string } | null;
@@ -13,6 +14,7 @@
 		onNodeSelect: (node: TaxonomyNodeNormalized, path: string) => void;
 		isNodeClickable: (node: TaxonomyNodeNormalized) => boolean;
 		onClose?: () => void;
+		distributionAreaCount?: number;
 	}
 
 	let {
@@ -21,7 +23,8 @@
 		startFromId,
 		onNodeSelect,
 		isNodeClickable,
-		onClose
+		onClose,
+		distributionAreaCount = 0
 	}: Props = $props();
 
 	type SheetPosition = 'peek' | 'half' | 'full';
@@ -180,6 +183,9 @@
 					{#if selectedNormalizedNode}
 						<p class="text-sm text-slate-600">
 							<span>{selectedNormalizedNode.node.rank || 'Selected'}</span>
+							{#if distributionAreaCount > 0}
+								<span> · present in {formatCount(distributionAreaCount)} {distributionAreaCount === 1 ? 'area' : 'areas'}</span>
+							{/if}
 						</p>
 					{/if}
 				</div>

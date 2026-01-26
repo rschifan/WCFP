@@ -11,6 +11,7 @@
 		onNodeSelect: (node: TaxonomyNodeNormalized, path: string) => void;
 		isNodeClickable: (node: TaxonomyNodeNormalized) => boolean;
 		onClose?: () => void;
+		distributionAreaCount?: number;
 	}
 
 	let {
@@ -20,7 +21,8 @@
 		startFromId,
 		onNodeSelect,
 		isNodeClickable,
-		onClose
+		onClose,
+		distributionAreaCount = 0
 	}: Props = $props();
 </script>
 
@@ -32,6 +34,7 @@
 		{onNodeSelect}
 		{isNodeClickable}
 		{onClose}
+		{distributionAreaCount}
 	/>
 {:else}
 	<TaxonomyPanelDesktop
@@ -41,5 +44,6 @@
 		{onNodeSelect}
 		{isNodeClickable}
 		{onClose}
+		{distributionAreaCount}
 	/>
 {/if}

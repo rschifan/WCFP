@@ -110,17 +110,6 @@
 		}
 	};
 
-	const ICON_COLORS: Record<string, string> = {
-		medicines: 'text-rose-600',
-		fuels: 'text-orange-600',
-		materials: 'text-stone-600',
-		poisons: 'text-purple-600',
-		animalFood: 'text-lime-600',
-		invertebrateFood: 'text-lime-600',
-		socialUses: 'text-blue-600',
-		environmentalUses: 'text-teal-600',
-		geneSources: 'text-indigo-600'
-	};
 
 	// Types
 	interface GenusGroup {
@@ -281,7 +270,7 @@
 	{@const cfg = USE_CONFIG[id]}
 	<button
 		type="button"
-		class="inline-flex cursor-help items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] {cfg.bg}"
+		class="inline-flex cursor-help items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] {cfg.bg}"
 		class:text-slate-600={id === 'lifeform'}
 		class:text-amber-700={id === 'cwr'}
 		onmouseenter={(e) => showTooltip(e, id)}
@@ -289,7 +278,7 @@
 		onfocus={(e) => showTooltip(e, id)}
 		onblur={hideTooltip}
 	>
-		<svelte:component this={cfg.icon} class="h-2.5 w-2.5" />
+		<svelte:component this={cfg.icon} class="h-[11px] w-[11px]" />
 		{#if label}{label}{/if}
 	</button>
 {/snippet}
@@ -299,14 +288,14 @@
 		{@const cfg = USE_CONFIG[id]}
 		<button
 			type="button"
-			class="cursor-help rounded p-0.5 {cfg.bg}"
+			class="inline-flex cursor-help items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600"
 			onmouseenter={(e) => showTooltip(e, id)}
 			onmouseleave={hideTooltip}
 			onfocus={(e) => showTooltip(e, id)}
 			onblur={hideTooltip}
 			aria-label={cfg.label}
 		>
-			<svelte:component this={cfg.icon} class="h-2.5 w-2.5 {ICON_COLORS[id]}" />
+			<svelte:component this={cfg.icon} class="h-[11px] w-[11px]" />
 		</button>
 	{/if}
 {/snippet}

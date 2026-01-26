@@ -37,15 +37,15 @@
 		icon: typeof Pill;
 		activeClass: string;
 	}> = [
-		{ key: 'medicines', label: 'Medicines', icon: Pill, activeClass: 'bg-rose-100 text-rose-700 border-rose-300' },
-		{ key: 'poisons', label: 'Poisons', icon: Skull, activeClass: 'bg-purple-100 text-purple-700 border-purple-300' },
-		{ key: 'materials', label: 'Materials', icon: Hammer, activeClass: 'bg-stone-100 text-stone-700 border-stone-300' },
-		{ key: 'fuels', label: 'Fuels', icon: Flame, activeClass: 'bg-orange-100 text-orange-700 border-orange-300' },
-		{ key: 'animalFood', label: 'Animal Food', icon: Bug, activeClass: 'bg-lime-100 text-lime-700 border-lime-300' },
-		{ key: 'invertebrateFood', label: 'Invertebrate Food', icon: Bug, activeClass: 'bg-lime-100 text-lime-700 border-lime-300' },
-		{ key: 'socialUses', label: 'Social Uses', icon: Users, activeClass: 'bg-blue-100 text-blue-700 border-blue-300' },
+		{ key: 'medicines', label: 'Medicines', icon: Pill, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'poisons', label: 'Poisons', icon: Skull, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'materials', label: 'Materials', icon: Hammer, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'fuels', label: 'Fuels', icon: Flame, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'animalFood', label: 'Animal Food', icon: Bug, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'invertebrateFood', label: 'Invertebrate Food', icon: Bug, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
+		{ key: 'socialUses', label: 'Social Uses', icon: Users, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
 		{ key: 'environmentalUses', label: 'Environmental', icon: Globe, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' },
-		{ key: 'geneSources', label: 'Gene Sources', icon: FlaskConical, activeClass: 'bg-indigo-100 text-indigo-700 border-indigo-300' }
+		{ key: 'geneSources', label: 'Gene Sources', icon: FlaskConical, activeClass: 'bg-teal-100 text-teal-700 border-teal-300' }
 	];
 
 	// Extract unique lifeforms from species data, sorted by frequency
@@ -162,7 +162,7 @@
 			<Filter class="h-4 w-4" />
 			Filters
 			{#if activeFilterCount > 0}
-				<span class="rounded-full bg-sky-500 px-1.5 py-0.5 text-xs font-semibold text-white">
+				<span class="rounded-full bg-teal-500 px-1.5 py-0.5 text-xs font-semibold text-white">
 					{activeFilterCount}
 				</span>
 			{/if}

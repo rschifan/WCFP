@@ -50,7 +50,7 @@
 			<Filter class="h-4 w-4" />
 			Filters
 			{#if showOnlySpatial}
-				<span class="rounded-full bg-sky-500 px-1.5 py-0.5 text-xs font-semibold text-white">1</span>
+				<span class="rounded-full bg-teal-500 px-1.5 py-0.5 text-xs font-semibold text-white">1</span>
 			{/if}
 		</button>
 		<button
@@ -77,7 +77,7 @@
 					<button
 						type="button"
 						class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {showOnlySpatial
-							? 'border-sky-300 bg-sky-100 text-sky-700'
+							? 'border-teal-300 bg-teal-100 text-teal-700'
 							: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'}"
 						onclick={() => onFilterChange(!showOnlySpatial)}
 					>

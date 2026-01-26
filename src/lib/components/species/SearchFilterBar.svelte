@@ -127,9 +127,9 @@
 	}
 </script>
 
-<div class="shrink-0 mx-4 my-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+<div class="shrink-0 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white overflow-hidden">
 	<!-- Search bar - always visible -->
-	<div class="p-3">
+	<div class="px-4 py-3">
 		<div class="relative">
 			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
 			<input
@@ -137,7 +137,7 @@
 				value={searchQuery}
 				oninput={(e) => onSearchChange(e.currentTarget.value)}
 				placeholder="Search families, genera, or species..."
-				class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
+				class="w-full rounded-sm border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
 			/>
 			{#if searchQuery}
 				<button
@@ -153,7 +153,7 @@
 	</div>
 
 	<!-- Filter toggle header -->
-	<div class="flex items-center justify-between border-t border-slate-100 px-3 py-2 text-sm">
+	<div class="flex items-center justify-between border-t border-slate-100 px-4 py-2 text-sm">
 		<button
 			type="button"
 			onclick={() => (filtersExpanded = !filtersExpanded)}
@@ -190,7 +190,7 @@
 
 	<!-- Active filters chips (shown when collapsed and has active filters) -->
 	{#if !filtersExpanded && activeFilters.length > 0}
-		<div class="flex flex-wrap gap-1.5 border-t border-slate-100 px-3 py-2">
+		<div class="flex flex-wrap gap-1.5 border-t border-slate-100 px-4 py-2">
 			{#each activeFilters as filter (filter.type + filter.key)}
 				<button
 					type="button"
@@ -210,7 +210,7 @@
 	<!-- Expanded filter content -->
 	{#if filtersExpanded}
 		<div
-			class="space-y-4 border-t border-slate-100 px-3 py-3"
+			class="space-y-4 border-t border-slate-100 px-4 py-3"
 			transition:slide={{ duration: 200, easing: cubicOut }}
 		>
 			<!-- Uses section -->

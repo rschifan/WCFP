@@ -3,7 +3,8 @@
 	import { spring } from 'svelte/motion';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
 	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
-	import { ArrowLeft } from 'lucide-svelte';
+	import TaxonomySearchFilterBar from './TaxonomySearchFilterBar.svelte';
+	import { ArrowLeft, ChevronDown } from 'lucide-svelte';
 
 	interface Props {
 		selectedNormalizedNode: { node: TaxonomyNodeNormalized; path: string } | null;
@@ -39,6 +40,21 @@
 	let animatedHeight = spring(POSITIONS.half, { stiffness: 0.2, damping: 0.8 });
 	let isAtPeek = $derived(sheetPosition === 'peek');
 	let isAtFull = $derived(sheetPosition === 'full');
+
+	// Search and filter state
+	let searchQuery = $state('');
+	let showOnlySpatial = $state(false);
+
+	// Create filter function that uses isNodeClickable when showOnlySpatial is true
+	const filterNodes = $derived.by(() => {
+		if (showOnlySpatial && isNodeClickable) {
+			return isNodeClickable;
+		}
+		return () => true; // Show all nodes when filter is off
+	});
+
+	// Extract selected node ID for passing to TaxonomyList
+	const selectedNodeId = $derived(selectedNormalizedNode?.node.id);
 
 	$effect(() => {
 		if (!isDragging) {
@@ -156,13 +172,50 @@
 		</div>
 	{/if}
 
-	<div class="flex-1 overflow-y-auto overscroll-contain">
-		<TaxonomyList
-			data={normalizedData}
-			{startFromId}
-			onNodeSelect={onNodeSelect}
-			{isNodeClickable}
-			class="h-full w-full"
+	{#if selectedNormalizedNode}
+		<div class="shrink-0 border-b border-slate-200 px-4 pb-3">
+			<div class="flex items-center justify-between">
+				<div class="min-w-0 flex-1">
+					<h2 class="truncate text-lg font-semibold text-slate-900">{selectedNormalizedNode.node.name}</h2>
+					{#if selectedNormalizedNode}
+						<p class="text-sm text-slate-600">
+							<span>{selectedNormalizedNode.node.rank || 'Selected'}</span>
+						</p>
+					{/if}
+				</div>
+
+				{#if isAtPeek}
+					<button
+						type="button"
+						onclick={() => (sheetPosition = 'full')}
+						class="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700"
+					>
+						<ChevronDown class="h-4 w-4 rotate-180" />
+						<span>View</span>
+					</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<div class="flex flex-1 flex-col overflow-hidden">
+		<TaxonomySearchFilterBar
+			{searchQuery}
+			onSearchChange={(q) => (searchQuery = q)}
+			{showOnlySpatial}
+			onFilterChange={(show) => (showOnlySpatial = show)}
 		/>
+		<div class="flex-1 overflow-y-auto overscroll-contain">
+			<TaxonomyList
+				data={normalizedData}
+				{startFromId}
+				onNodeSelect={onNodeSelect}
+				{isNodeClickable}
+				{searchQuery}
+				{filterNodes}
+				{selectedNodeId}
+				class="h-full w-full"
+			/>
+		</div>
 	</div>
 </div>

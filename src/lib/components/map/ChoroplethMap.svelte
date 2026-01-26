@@ -73,6 +73,7 @@
 	let tooltip = $state<{ x: number; y: number; name: string; count: number } | null>(null);
 	let hoveredFeatureId = $state<string | number | null>(null);
 	let boundsFitted = $state(false);
+	let isGlobeMode = $state(false);
 
 	// Non-reactive variable for tracking selected feature (to avoid infinite loops in effects)
 	let currentSelectedFeatureId: string | number | null = null;
@@ -579,10 +580,13 @@
 			? 'opacity-100'
 			: 'opacity-0'}"
 	>
-		<MapComponent
-			initialViewState={{ longitude: 0, latitude: 20, zoom: 2 }}
-			onMapLoad={handleMapLoad}
-		/>
+		<div class="h-full w-full {isGlobeMode ? 'p-4' : ''}">
+			<MapComponent
+				initialViewState={{ longitude: 0, latitude: 20, zoom: 2 }}
+				onMapLoad={handleMapLoad}
+				onGlobeModeChange={(isGlobe) => (isGlobeMode = isGlobe)}
+			/>
+		</div>
 	</div>
 
 	<!-- Hover Tooltip -->

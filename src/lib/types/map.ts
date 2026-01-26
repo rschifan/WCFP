@@ -66,6 +66,10 @@ export interface MapProps {
 	 * Position of the globe toggle button (default: 'top-left')
 	 */
 	globeTogglePosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+	/**
+	 * Optional callback when globe mode changes
+	 */
+	onGlobeModeChange?: (isGlobe: boolean) => void;
 }
 
 /**

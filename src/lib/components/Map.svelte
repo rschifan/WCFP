@@ -46,7 +46,8 @@
 		onViewStateChange,
 		onMapLoad,
 		showGlobeToggle = true,
-		globeTogglePosition = 'top-left'
+		globeTogglePosition = 'top-left',
+		onGlobeModeChange
 	}: MapProps = $props();
 
 	// State
@@ -58,6 +59,8 @@
 	let loadTimeoutId: ReturnType<typeof setTimeout> | null = null;
 	let initAttempt = 0;
 	let isGlobeView = $state(false);
+	let isTransitioning = $state(false);
+
 
 	/**
 	 * Returns a finite number or a fallback value.
@@ -114,33 +117,126 @@
 
 	/**
 	 * Toggle between 2D and 3D globe view
-	 * Reused from routes/+page.svelte
+	 * Uses opacity fade to mask the transition and waits for map to be idle
 	 */
 	function toggleProjection() {
-		if (!map || !mapContainer) return;
-		isGlobeView = !isGlobeView;
+		if (!map || !mapContainer || isTransitioning) return;
+
 		const mapInstance = map;
-		mapInstance.setProjection({ type: isGlobeView ? 'globe' : 'mercator' });
+		isTransitioning = true;
 
-		// Set consistent background color for globe view using CSS
-		// This ensures the background is consistent across all maps
-		// Dark background (#1a1a1a) matches the Cerberus theme
-		if (isGlobeView) {
-			mapContainer.style.backgroundColor = '#1a1a1a';
-		} else {
-			// Reset to transparent/white for 2D view
-			mapContainer.style.backgroundColor = '';
-		}
+		// Toggle the view state
+		const newIsGlobeView = !isGlobeView;
 
-		// Hide/show text and symbol layers to prevent labels from appearing flat in globe view
-		const style = mapInstance.getStyle();
-		if (style?.layers) {
-			style.layers.forEach((layer) => {
-				if (layer.type === 'symbol') {
-					mapInstance.setLayoutProperty(layer.id, 'visibility', isGlobeView ? 'none' : 'visible');
+		// Fade out the map container to mask the transition
+		mapContainer.style.transition = 'opacity 50ms ease-out';
+		mapContainer.style.opacity = '0';
+
+		// Wait for the fade, then make changes, then fade back in
+		setTimeout(() => {
+			if (!map || !mapContainer) {
+				isTransitioning = false;
+				if (mapContainer) {
+					mapContainer.style.opacity = '1';
+					mapContainer.style.transition = '';
 				}
-			});
-		}
+				return;
+			}
+
+			// Update state and notify callback
+			isGlobeView = newIsGlobeView;
+			onGlobeModeChange?.(newIsGlobeView);
+
+			// Make all projection changes while map is faded
+			if (newIsGlobeView) {
+				// Switch to globe projection
+				mapInstance.setProjection({ type: 'globe' });
+
+				// Set dark background
+				mapContainer.style.transition = 'background-color 200ms ease-out';
+				mapContainer.style.backgroundColor = '#161616';
+
+				// Set atmosphere - matching atgreen style
+				mapInstance.setSky({
+					'sky-color': '#006d2c',
+					'sky-horizon-blend': 0.5,
+					'horizon-color': '#006d2c',
+					'horizon-fog-blend': 0.5,
+					'fog-color': '#161616',
+					'atmosphere-blend': [
+						'interpolate',
+						['linear'],
+						['zoom'],
+						0, 1,
+						5, 1,
+						7, 0
+					]
+				});
+
+				// Hide symbol layers (they look bad on globe)
+				const style = mapInstance.getStyle();
+				if (style?.layers) {
+					for (const layer of style.layers) {
+						if (layer.type === 'symbol') {
+							mapInstance.setLayoutProperty(layer.id, 'visibility', 'none');
+						}
+					}
+				}
+			} else {
+				// Switch to mercator projection
+				mapInstance.setProjection({ type: 'mercator' });
+
+				// Reset background
+				mapContainer.style.transition = 'background-color 200ms ease-out';
+				mapContainer.style.backgroundColor = '';
+
+				// Reset sky
+				mapInstance.setSky({
+					'atmosphere-blend': 0
+				});
+
+				// Show symbol layers
+				const style = mapInstance.getStyle();
+				if (style?.layers) {
+					for (const layer of style.layers) {
+						if (layer.type === 'symbol') {
+							mapInstance.setLayoutProperty(layer.id, 'visibility', 'visible');
+						}
+					}
+				}
+			}
+
+			// Wait for map to render, then fade back in
+			// Use the map's 'idle' event to know when rendering is complete
+			const onIdle = () => {
+				if (!mapContainer) return;
+				
+				// Fade back in quickly
+				mapContainer.style.transition = 'opacity 50ms ease-in';
+				mapContainer.style.opacity = '1';
+				
+				// Clean up transition after animation completes
+				setTimeout(() => {
+					if (mapContainer) {
+						mapContainer.style.transition = '';
+					}
+					isTransitioning = false;
+				}, 50);
+
+				// Remove the one-time listener
+				mapInstance.off('idle', onIdle);
+			};
+
+			// Listen for map to finish rendering
+			mapInstance.once('idle', onIdle);
+			
+			// Fallback timeout in case 'idle' event doesn't fire
+			setTimeout(() => {
+				if (isTransitioning) {
+					onIdle();
+				}
+			}, 500);
+		}, 50);
 	}
 
 	const positionClasses = {
@@ -425,9 +521,13 @@
 			type="button"
 			class="absolute {positionClasses[
 				globeTogglePosition
-			]} z-10 flex items-center rounded-lg bg-white px-2 py-2 shadow-lg transition-all hover:shadow-xl"
+			]} z-10 flex items-center rounded-lg bg-white px-2 py-2 shadow-lg transition-all hover:shadow-xl {isTransitioning
+				? 'opacity-50 cursor-wait'
+				: ''}"
 			onclick={toggleProjection}
+			disabled={isTransitioning}
 			aria-label="Toggle between 2D and 3D globe view"
+			aria-busy={isTransitioning}
 		>
 			{#if isGlobeView}
 				<MapIcon class="h-5 w-5 text-slate-700" />

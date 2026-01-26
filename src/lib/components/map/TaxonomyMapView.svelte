@@ -317,12 +317,12 @@
 	}
 
 	/**
-	 * Check if a normalized node is clickable (family/species rank + has WCFP_IDs).
+	 * Check if a normalized node is clickable (family/genus/species rank + has WCFP_IDs).
 	 * Simple check - no caching needed since WCFP_ID check is fast.
 	 */
 	function isNodeClickable(node: TaxonomyNodeNormalized): boolean {
-		// Only family and species ranks are clickable
-		if (node.rank !== 'family' && node.rank !== 'species') {
+		// Only family, genus, and species ranks are clickable
+		if (node.rank !== 'family' && node.rank !== 'genus' && node.rank !== 'species') {
 			return false;
 		}
 

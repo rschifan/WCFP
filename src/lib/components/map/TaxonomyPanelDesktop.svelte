@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { fly } from 'svelte/transition';
+	import { fly, fade } from 'svelte/transition';
 	import { cubicOut } from 'svelte/easing';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
 	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
-	import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-svelte';
+	import TaxonomySearchFilterBar from './TaxonomySearchFilterBar.svelte';
+	import { ChevronLeft, ChevronRight, GripVertical, X } from 'lucide-svelte';
 
 	interface Props {
 		selectedNormalizedNode: { node: TaxonomyNodeNormalized; path: string } | null;
@@ -49,6 +50,21 @@
 	let isInitialLoad = $state(true);
 
 	let displayWidth = $derived(isCollapsed ? COLLAPSED_WIDTH : panelWidth);
+
+	// Search and filter state
+	let searchQuery = $state('');
+	let showOnlySpatial = $state(false);
+
+	// Create filter function that uses isNodeClickable when showOnlySpatial is true
+	const filterNodes = $derived.by(() => {
+		if (showOnlySpatial && isNodeClickable) {
+			return isNodeClickable;
+		}
+		return () => true; // Show all nodes when filter is off
+	});
+
+	// Extract selected node ID for passing to TaxonomyList
+	const selectedNodeId = $derived(selectedNormalizedNode?.node.id);
 
 	// Mark initial load as complete after first render
 	$effect(() => {
@@ -135,17 +151,50 @@
 		<div class="flex h-full w-full flex-col items-center justify-center">
 			<!-- Empty collapsed state - just shows collapse button -->
 		</div>
-	{:else}
+		{:else}
 		<div class="flex h-full w-full flex-col pr-2">
+			{#if selectedNormalizedNode}
+				<div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+					<div class="min-w-0 flex-1">
+						<h2 class="truncate text-lg font-semibold text-slate-900">{selectedNormalizedNode.node.name}</h2>
+						{#if selectedNormalizedNode}
+							<p class="text-sm text-slate-600" transition:fade={{ duration: 150 }}>
+								<span>{selectedNormalizedNode.node.rank || 'Selected'}</span>
+							</p>
+						{/if}
+					</div>
+
+					{#if onClose}
+						<button
+							type="button"
+							onclick={onClose}
+							class="shrink-0 rounded-lg p-2 text-slate-400 transition-all duration-150 hover:rotate-90 hover:bg-slate-200 hover:text-slate-600"
+							aria-label="Close panel"
+						>
+							<X class="h-5 w-5" />
+						</button>
+					{/if}
+				</div>
+			{/if}
+
+			<TaxonomySearchFilterBar
+				{searchQuery}
+				onSearchChange={(q) => (searchQuery = q)}
+				{showOnlySpatial}
+				onFilterChange={(show) => (showOnlySpatial = show)}
+			/>
 			<div class="flex-1 overflow-y-auto">
 				<TaxonomyList
 					data={normalizedData}
 					{startFromId}
 					onNodeSelect={onNodeSelect}
 					{isNodeClickable}
+					{searchQuery}
+					{filterNodes}
+					{selectedNodeId}
 					class="h-full w-full"
 				/>
 			</div>
 		</div>
-	{/if}
+		{/if}
 </div>

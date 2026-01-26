@@ -205,41 +205,41 @@
 			</div>
 		{:else}
 			<div class="flex h-full w-full flex-col pr-2">
-				<div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-4">
-					<div class="min-w-0 flex-1">
-						<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
-						{#if !loading && !error}
-							<p class="text-sm text-slate-600" transition:fade={{ duration: 150 }}>
-								{#if species.length !== allSpecies.length}
-									<span class="font-medium text-sky-600">{formatCount(species.length)}</span> of {formatCount(allSpecies.length)} species
-								{:else}
-									{formatCount(species.length)} species found
-								{/if}
-							</p>
+				<div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+						<div class="min-w-0 flex-1">
+							<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
+							{#if !loading && !error}
+								<p class="text-sm text-slate-600" transition:fade={{ duration: 150 }}>
+									{#if species.length !== allSpecies.length}
+										<span class="font-medium text-sky-600">{formatCount(species.length)}</span> of {formatCount(allSpecies.length)} species
+									{:else}
+										{formatCount(species.length)} species found
+									{/if}
+								</p>
+							{/if}
+						</div>
+
+						{#if onClose}
+							<button
+								type="button"
+								onclick={onClose}
+								class="shrink-0 rounded-lg p-2 text-slate-400 transition-all duration-150 hover:rotate-90 hover:bg-slate-200 hover:text-slate-600"
+								aria-label="Close panel"
+							>
+								<X class="h-5 w-5" />
+							</button>
 						{/if}
 					</div>
 
-					{#if onClose}
-						<button
-							type="button"
-							onclick={onClose}
-							class="shrink-0 rounded-lg p-2 text-slate-400 transition-all duration-150 hover:rotate-90 hover:bg-slate-200 hover:text-slate-600"
-							aria-label="Close panel"
-						>
-							<X class="h-5 w-5" />
-						</button>
+					{#if !loading && !error && allSpecies.length > 0}
+						<SearchFilterBar
+							{filters}
+							species={allSpecies}
+							{onFilterChange}
+							{searchQuery}
+							{onSearchChange}
+						/>
 					{/if}
-				</div>
-
-				{#if !loading && !error && allSpecies.length > 0}
-					<SearchFilterBar
-						{filters}
-						species={allSpecies}
-						{onFilterChange}
-						{searchQuery}
-						{onSearchChange}
-					/>
-				{/if}
 
 				<div class="flex-1 overflow-y-auto">
 					{#if loading}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { getRankLabel } from '$lib/constants/tree';
-	import { Search, X, SquareArrowOutUpRight, ChevronRight } from 'lucide-svelte';
+	import { Search, X, ChevronRight, SquareArrowOutUpRight } from 'lucide-svelte';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
 	import { TaxonomySearchIndex } from '$lib/utils/taxonomy/search';
 
@@ -13,6 +13,12 @@
 		class?: string;
 		/** Function to check if a node is clickable */
 		isNodeClickable?: (node: TaxonomyNodeNormalized) => boolean;
+		/** Optional external search query (if provided, uses this instead of internal state) */
+		searchQuery?: string;
+		/** Optional filter function to filter nodes (returns true to show node) */
+		filterNodes?: (node: TaxonomyNodeNormalized) => boolean;
+		/** Optional selected node ID for external selection highlighting */
+		selectedNodeId?: string;
 	}
 
 	let {
@@ -21,7 +27,10 @@
 		initialExpandedDepth = 0,
 		onNodeSelect,
 		class: className = '',
-		isNodeClickable
+		isNodeClickable,
+		searchQuery: externalSearchQuery,
+		filterNodes,
+		selectedNodeId: externalSelectedNodeId
 	}: Props = $props();
 
 	const rootId = $derived(startFromId ?? data.rootId);
@@ -30,15 +39,32 @@
 
 	let expandedNodes = new SvelteSet<string>();
 	let selectedId = $state<string | null>(null);
-	let searchQuery = $state('');
+	let internalSearchQuery = $state('');
 	let debouncedQuery = $state('');
+
+	// Sync external selectedNodeId with internal selectedId
+	$effect(() => {
+		if (externalSelectedNodeId !== undefined && externalSelectedNodeId !== selectedId) {
+			selectedId = externalSelectedNodeId;
+		}
+	});
+
+	// Use external searchQuery if provided, otherwise use internal state
+	const searchQuery = $derived(externalSearchQuery ?? internalSearchQuery);
+	const hasExternalSearch = $derived(externalSearchQuery !== undefined);
 
 	const searchTerm = $derived(debouncedQuery.trim().toLowerCase());
 	const isSearching = $derived(searchTerm.length > 0);
 	const MAX_VISIBLE_RESULTS = 500;
 
+	// Debounce search query (only if using internal state)
 	$effect(() => {
-		const currentQuery = searchQuery;
+		if (hasExternalSearch) {
+			// Use external query directly, no debounce needed
+			debouncedQuery = searchQuery.trim();
+			return;
+		}
+		const currentQuery = internalSearchQuery;
 		const handle = setTimeout(() => {
 			debouncedQuery = currentQuery;
 		}, 200);
@@ -61,6 +87,14 @@
 
 		// Build visible set with matched nodes and ancestors
 		for (const nodeId of matchedNodeIds) {
+			const node = nodesById.get(nodeId);
+			if (!node) continue;
+
+			// Apply filter if provided
+			if (filterNodes && !filterNodes(node)) {
+				continue;
+			}
+
 			visibleSet.add(nodeId);
 			const ancestors = searchIndex.getAncestors(nodeId);
 			for (const ancestorId of ancestors) {
@@ -108,7 +142,36 @@
 		if (searchResult) {
 			return searchResult.childrenById.get(nodeId) ?? [];
 		}
-		return nodesById.get(nodeId)?.childrenIds ?? [];
+		
+		const allChildren = nodesById.get(nodeId)?.childrenIds ?? [];
+		
+		// Apply filter if provided and not searching
+		if (filterNodes) {
+			return allChildren.filter((childId) => {
+				const childNode = nodesById.get(childId);
+				if (!childNode) return false;
+				
+				// Show node if it matches filter OR has descendants that match filter
+				if (filterNodes(childNode)) {
+					return true;
+				}
+				
+				// Check if any descendant matches filter (ancestors should be visible)
+				function hasMatchingDescendant(id: string): boolean {
+					const node = nodesById.get(id);
+					if (!node) return false;
+					if (filterNodes!(node)) return true;
+					for (const childId of node.childrenIds) {
+						if (hasMatchingDescendant(childId)) return true;
+					}
+					return false;
+				}
+				
+				return hasMatchingDescendant(childId);
+			});
+		}
+		
+		return allChildren;
 	}
 
 	function isExpandedEffective(nodeId: string): boolean {
@@ -184,8 +247,9 @@
 		{#if node}
 			{@const childIds = getChildrenIds(nodeId)}
 			{@const hasKids = childIds.length > 0}
+			{@const hasOriginalChildren = (node.childrenIds?.length ?? 0) > 0}
 			{@const expanded = isExpandedEffective(nodeId)}
-			{@const selected = selectedId === nodeId}
+			{@const selected = selectedId === nodeId || externalSelectedNodeId === nodeId}
 			{@const isClickable = isNodeClickable
 				? (() => {
 						try {
@@ -196,6 +260,9 @@
 						}
 					})()
 				: false}
+			{@const isFamilyOrBelow = node.rank === 'family' || node.rank === 'genus' || node.rank === 'species'}
+			{@const shouldShowIcon = isClickable && hasOriginalChildren && isFamilyOrBelow}
+			{@const shouldShowIconDebug = isClickable && hasOriginalChildren}
 
 		<li
 			class="m-0 list-none p-0"
@@ -211,19 +278,33 @@
 				<!-- Navigation Button (expand/collapse) -->
 				<button
 					type="button"
-					class="group relative z-10 flex min-w-0 flex-1 items-center gap-1.5 border-none bg-transparent text-left {hasKids
+					class="group relative z-10 flex min-w-0 flex-1 items-center gap-1.5 border-none bg-transparent text-left {hasKids || isClickable
 						? 'cursor-pointer'
 						: 'cursor-default'}"
 					onclick={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
-						// Always allow navigation (expand/collapse) if node has children
+						// Leaf nodes (no children) that are clickable should open the map directly
+						if (!hasKids && isClickable) {
+							console.log('[TaxonomyList] Clicking leaf node with spatial data:', node.name, nodeId);
+							selectNode(node, nodeId);
+							return;
+						}
+						// If node has children, expand/collapse
 						if (hasKids && !isSearching) {
 							toggleExpanded(nodeId, event);
 						}
 					}}
-					onkeydown={(e) => handleKeyDown(e, nodeId, hasKids)}
-					aria-disabled={!hasKids || isSearching}
+					onkeydown={(e) => {
+						if (!hasKids && isClickable && (e.key === 'Enter' || e.key === ' ')) {
+							e.preventDefault();
+							e.stopPropagation();
+							selectNode(node, nodeId);
+						} else {
+							handleKeyDown(e, nodeId, hasKids);
+						}
+					}}
+					aria-disabled={hasKids ? (isSearching ? true : false) : false}
 					aria-expanded={hasKids ? expanded : undefined}
 				>
 					<!-- Expand/Collapse Chevron -->
@@ -234,29 +315,21 @@
 					/>
 
 					<!-- Main Content -->
-					<span class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-700">
+					<span class="min-w-0 flex-1 truncate text-sm font-semibold {isClickable ? 'text-[#80cbc4]' : 'text-slate-700'} {selected ? 'underline' : ''}">
 						{#if isSearching}
 							{@render highlightedText(node.name, debouncedQuery)}
 						{:else}
 							{node.name}
 						{/if}
 					</span>
-
-					<!-- Count Badge (if has children) -->
-					{#if hasKids}
-						<span
-							class="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 group-hover:bg-slate-300"
-						>
-							{childIds.length}
-						</span>
-					{/if}
 				</button>
 
-				<!-- Map Icon Button (if clickable) - separate from navigation button -->
-				{#if isClickable}
+				<!-- Map Icon (if clickable and has children, and is family or below) - before count badge -->
+				{#if shouldShowIcon}
+					<!-- Debug: {node.name} (rank: {node.rank}) - isClickable: {isClickable}, hasOriginalChildren: {hasOriginalChildren}, isFamilyOrBelow: {isFamilyOrBelow}, childrenIds.length: {node.childrenIds?.length ?? 0}, shouldShowIcon: {shouldShowIcon} -->
 					<button
 						type="button"
-						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-600 transition-colors duration-150 hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-500 active:bg-slate-200"
+						class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#80cbc4] transition-colors duration-150 hover:bg-slate-100 hover:text-[#80cbc4] focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-500 active:bg-slate-200"
 						title="View spatial distribution map"
 						aria-label="View spatial distribution map for {node.name}"
 						onclick={(event) => {
@@ -271,8 +344,17 @@
 							}
 						}}
 					>
-						<SquareArrowOutUpRight class="h-4 w-4" aria-hidden="true" />
+						<SquareArrowOutUpRight class="h-3.5 w-3.5" aria-hidden="true" />
 					</button>
+				{/if}
+
+				<!-- Count Badge (if has children) - fixed width for alignment -->
+				{#if hasKids}
+					<span
+						class="flex min-w-[2rem] items-center justify-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 group-hover:bg-slate-300"
+					>
+						{childIds.length}
+					</span>
 				{/if}
 			</div>
 
@@ -290,27 +372,31 @@
 {/snippet}
 
 <div class="flex h-full flex-col overflow-hidden bg-slate-50 {className}">
-	<div class="sticky top-0 z-10 bg-white px-3 py-2">
-		<div class="relative">
-			<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder="Search"
-				class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
-			/>
-			{#if searchQuery}
-				<button
-					type="button"
-					onclick={() => (searchQuery = '')}
-					class="absolute top-1/2 right-3 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-					aria-label="Clear search"
-				>
-					<X class="h-4 w-4" />
-				</button>
-			{/if}
+	{#if !hasExternalSearch}
+		<!-- Internal search UI - only show if external searchQuery prop is not provided -->
+		<div class="sticky top-0 z-10 bg-white px-3 py-2">
+			<div class="relative">
+				<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+				<input
+					type="text"
+					value={internalSearchQuery}
+					oninput={(e) => (internalSearchQuery = e.currentTarget.value)}
+					placeholder="Search"
+					class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
+				/>
+				{#if internalSearchQuery}
+					<button
+						type="button"
+						onclick={() => (internalSearchQuery = '')}
+						class="absolute top-1/2 right-3 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+						aria-label="Clear search"
+					>
+						<X class="h-4 w-4" />
+					</button>
+				{/if}
+			</div>
 		</div>
-	</div>
+	{/if}
 
 	{#if isSearching && searchResult && !searchResult.hasMatches}
 		<div class="flex flex-1 items-center justify-center text-sm text-slate-500">

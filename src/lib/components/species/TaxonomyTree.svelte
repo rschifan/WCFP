@@ -278,7 +278,7 @@
 		onfocus={(e) => showTooltip(e, id)}
 		onblur={hideTooltip}
 	>
-		<svelte:component this={cfg.icon} class="h-[11px] w-[11px]" />
+		<cfg.icon class="h-[11px] w-[11px]" />
 		{#if label}{label}{/if}
 	</button>
 {/snippet}
@@ -295,7 +295,7 @@
 			onblur={hideTooltip}
 			aria-label={cfg.label}
 		>
-			<svelte:component this={cfg.icon} class="h-[11px] w-[11px]" />
+			<cfg.icon class="h-[11px] w-[11px]" />
 		</button>
 	{/if}
 {/snippet}

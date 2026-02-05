@@ -122,12 +122,13 @@
 
 	// Precompute descendant matches for filterNodes (avoids per-render recursion)
 	const filterMatchMap = $derived.by(() => {
-		if (!filterNodes) return null;
+		const filterFn = filterNodes;
+		if (!filterFn) return null;
 		const matchMap = new Map<string, boolean>();
 
 		function nodeMatches(node: TaxonomyNodeNormalized): boolean {
 			try {
-				return filterNodes(node);
+				return filterFn?.(node) ?? false;
 			} catch (err) {
 				console.warn('[TaxonomyList] Error checking node filter:', err);
 				return false;

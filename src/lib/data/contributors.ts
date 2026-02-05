@@ -36,13 +36,13 @@ export const contributors: Contributor[] = [
 	{
 		name: 'Colin K. Khoury',
 		affiliations: ['The New York Botanical Garden'],
-		photo: 'https://www.croptrust.org/fileadmin/_processed_/9/c/csm_Colin_Khoury_6291ef486f.jpg',
+		photo: '/profile/Khoury_Colin_2025.jpg',
 		website: 'https://www.linkedin.com/in/colin-k-khoury-0318ba23/'
 	},
 	{
 		name: 'Sarah L. Gora',
 		affiliations: ['Independent consultant'],
-		photo: null,
+		photo: '/profile/SarahGora_profile_photo.JPG',
 		website: null
 	},
 	{

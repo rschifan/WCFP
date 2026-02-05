@@ -24,9 +24,11 @@
 		onFilterChange: (filters: SpeciesFilters) => void;
 		searchQuery: string;
 		onSearchChange: (query: string) => void;
+		/** When true, removes outer container styling for integration with parent */
+		integrated?: boolean;
 	}
 
-	let { filters, species, onFilterChange, searchQuery, onSearchChange }: Props = $props();
+	let { filters, species, onFilterChange, searchQuery, onSearchChange, integrated = false }: Props = $props();
 
 	let filtersExpanded = $state(false);
 
@@ -127,7 +129,7 @@
 	}
 </script>
 
-<div class="shrink-0 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white overflow-hidden">
+<div class="shrink-0 overflow-hidden {integrated ? '' : 'mx-4 my-3 rounded-xl border border-slate-200 bg-white shadow-sm'}">
 	<!-- Search bar - always visible -->
 	<div class="px-4 py-3">
 		<div class="relative">

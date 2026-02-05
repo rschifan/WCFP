@@ -211,54 +211,58 @@
 			<div class="h-1 w-10 rounded-full bg-slate-300"></div>
 		</div>
 
-		<div class="shrink-0 border-b border-slate-200 px-4 pb-3">
-			{#if isAtFull}
-				<button
-					type="button"
-					onclick={() => (sheetPosition = 'half')}
-					class="mb-2 flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700"
-				>
-					<ArrowLeft class="h-4 w-4" />
-					<span>Back to Map</span>
-				</button>
-			{/if}
-
-			<div class="flex items-center justify-between">
-				<div class="min-w-0 flex-1">
-					<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
-					{#if !loading && !error}
-						<p class="text-sm text-slate-600">
-							{#if species.length !== allSpecies.length}
-								<span class="font-medium text-sky-600">{formatCount(species.length)}</span> of {formatCount(allSpecies.length)} species
-							{:else}
-								{formatCount(species.length)} species found
-							{/if}
-						</p>
-					{/if}
-				</div>
-
-				{#if isAtPeek}
+		<!-- Integrated header + search/filter block -->
+		<div class="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50/50">
+			<div class="px-4 pt-1 pb-3">
+				{#if isAtFull}
 					<button
 						type="button"
-						onclick={() => (sheetPosition = 'full')}
-						class="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700"
+						onclick={() => (sheetPosition = 'half')}
+						class="mb-2 flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700"
 					>
-						<ChevronDown class="h-4 w-4 rotate-180" />
-						<span>View</span>
+						<ArrowLeft class="h-4 w-4" />
+						<span>Back to Map</span>
 					</button>
 				{/if}
-			</div>
-		</div>
 
-		{#if !loading && !error && allSpecies.length > 0}
-			<SearchFilterBar
-				{filters}
-				species={allSpecies}
-				{onFilterChange}
-				{searchQuery}
-				{onSearchChange}
-			/>
-		{/if}
+				<div class="flex items-center justify-between">
+					<div class="min-w-0 flex-1">
+						<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
+						{#if !loading && !error}
+							<p class="text-sm text-slate-600">
+								{#if species.length !== allSpecies.length}
+									<span class="font-medium text-sky-600">{formatCount(species.length)}</span> of {formatCount(allSpecies.length)} species
+								{:else}
+									{formatCount(species.length)} species found
+								{/if}
+							</p>
+						{/if}
+					</div>
+
+					{#if isAtPeek}
+						<button
+							type="button"
+							onclick={() => (sheetPosition = 'full')}
+							class="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700"
+						>
+							<ChevronDown class="h-4 w-4 rotate-180" />
+							<span>View</span>
+						</button>
+					{/if}
+				</div>
+			</div>
+
+			{#if !loading && !error && allSpecies.length > 0}
+				<SearchFilterBar
+					{filters}
+					species={allSpecies}
+					{onFilterChange}
+					{searchQuery}
+					{onSearchChange}
+					integrated={true}
+				/>
+			{/if}
+		</div>
 
 		<div class="flex-1 overflow-y-auto overscroll-contain">
 			{#if loading}

@@ -37,12 +37,16 @@
 	// Initialize width synchronously from localStorage (SSR-safe)
 	function getInitialWidth(): number {
 		if (typeof window === 'undefined') return DEFAULT_WIDTH;
-		const saved = localStorage.getItem(STORAGE_KEY);
-		if (saved) {
-			const parsed = parseInt(saved, 10);
-			if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
-				return parsed;
+		try {
+			const saved = localStorage.getItem(STORAGE_KEY);
+			if (saved) {
+				const parsed = parseInt(saved, 10);
+				if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
+					return parsed;
+				}
 			}
+		} catch {
+			// localStorage may be unavailable (private mode / disabled storage)
 		}
 		return DEFAULT_WIDTH;
 	}
@@ -81,7 +85,11 @@
 
 	$effect(() => {
 		if (!isCollapsed) {
-			localStorage.setItem(STORAGE_KEY, panelWidth.toString());
+			try {
+				localStorage.setItem(STORAGE_KEY, panelWidth.toString());
+			} catch {
+				// localStorage may be unavailable (private mode / disabled storage)
+			}
 		}
 	});
 

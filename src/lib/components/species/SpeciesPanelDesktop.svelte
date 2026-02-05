@@ -205,7 +205,10 @@
 			</div>
 		{:else}
 			<div class="flex h-full w-full flex-col pr-2">
-				<div class="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-4 py-3">
+				<!-- Integrated header + search/filter block -->
+				<div class="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50/50">
+					<!-- Title row -->
+					<div class="flex items-center justify-between px-4 pt-4 pb-3">
 						<div class="min-w-0 flex-1">
 							<h2 class="truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
 							{#if !loading && !error}
@@ -231,6 +234,7 @@
 						{/if}
 					</div>
 
+					<!-- Search and filters - integrated style -->
 					{#if !loading && !error && allSpecies.length > 0}
 						<SearchFilterBar
 							{filters}
@@ -238,8 +242,10 @@
 							{onFilterChange}
 							{searchQuery}
 							{onSearchChange}
+							integrated={true}
 						/>
 					{/if}
+				</div>
 
 				<div class="flex-1 overflow-y-auto">
 					{#if loading}

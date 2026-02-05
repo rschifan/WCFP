@@ -120,6 +120,38 @@
 		return { childrenById, expanded, hasMatches: true };
 	});
 
+	// Precompute descendant matches for filterNodes (avoids per-render recursion)
+	const filterMatchMap = $derived.by(() => {
+		if (!filterNodes) return null;
+		const matchMap = new Map<string, boolean>();
+
+		function nodeMatches(node: TaxonomyNodeNormalized): boolean {
+			try {
+				return filterNodes(node);
+			} catch (err) {
+				console.warn('[TaxonomyList] Error checking node filter:', err);
+				return false;
+			}
+		}
+
+		function dfs(nodeId: string): boolean {
+			const node = nodesById.get(nodeId);
+			if (!node) return false;
+
+			let hasMatch = nodeMatches(node);
+			for (const childId of node.childrenIds) {
+				if (dfs(childId)) {
+					hasMatch = true;
+				}
+			}
+			matchMap.set(nodeId, hasMatch);
+			return hasMatch;
+		}
+
+		dfs(rootId);
+		return matchMap;
+	});
+
 	// Expand nodes on mount and when rootId changes
 	$effect(() => {
 		const root = rootId;
@@ -146,29 +178,8 @@
 		const allChildren = nodesById.get(nodeId)?.childrenIds ?? [];
 		
 		// Apply filter if provided and not searching
-		if (filterNodes) {
-			return allChildren.filter((childId) => {
-				const childNode = nodesById.get(childId);
-				if (!childNode) return false;
-				
-				// Show node if it matches filter OR has descendants that match filter
-				if (filterNodes(childNode)) {
-					return true;
-				}
-				
-				// Check if any descendant matches filter (ancestors should be visible)
-				function hasMatchingDescendant(id: string): boolean {
-					const node = nodesById.get(id);
-					if (!node) return false;
-					if (filterNodes!(node)) return true;
-					for (const childId of node.childrenIds) {
-						if (hasMatchingDescendant(childId)) return true;
-					}
-					return false;
-				}
-				
-				return hasMatchingDescendant(childId);
-			});
+		if (filterNodes && filterMatchMap) {
+			return allChildren.filter((childId) => filterMatchMap.get(childId));
 		}
 		
 		return allChildren;

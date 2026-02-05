@@ -83,6 +83,61 @@
 	// Normalize tree data (memoized with $derived)
 	const normalizedData = $derived(normalizeTaxonomyTree(taxonomyTree));
 
+	// Build a fast lookup map for taxonomy nodes by path (one-time per tree)
+	function buildPathMap(root: TaxonomyNode): Map<string, TaxonomyNode> {
+		const map = new Map<string, TaxonomyNode>();
+
+		function walk(node: TaxonomyNode, parentPath: string) {
+			const path = node.path ?? (parentPath ? `${parentPath}/${node.name}` : node.name);
+			map.set(path, node);
+
+			if (node.children && Array.isArray(node.children)) {
+				for (const child of node.children) {
+					if (child && typeof child === 'object' && 'name' in child) {
+						walk(child as TaxonomyNode, path);
+					}
+				}
+			}
+		}
+
+		walk(root, '');
+		return map;
+	}
+
+	const taxonomyNodeByPath = $derived(buildPathMap(taxonomyTree));
+
+	// Precompute clickable node IDs for O(1) lookup in the list/filter UI
+	const clickableNodeIds = $derived.by(() => {
+		const set = new Set<string>();
+		if (!schema || !schema.ranks) return set;
+
+		for (const node of normalizedData.nodesById.values()) {
+			if (node.rank !== 'family' && node.rank !== 'genus' && node.rank !== 'species') continue;
+
+			const path = node.path ?? '';
+			const taxonomyNode = taxonomyNodeByPath.get(path) ?? null;
+			if (!taxonomyNode) continue;
+
+			if (node.rank === 'species') {
+				const wcfpId = taxonomyNode.wcfpId;
+				if (typeof wcfpId === 'number' && wcfpIdsWithSpatialData.has(wcfpId)) {
+					set.add(node.id);
+				}
+				continue;
+			}
+
+			const ids = getWcfpIdsForNode(taxonomyNode, schema);
+			for (const id of ids) {
+				if (wcfpIdsWithSpatialData.has(id)) {
+					set.add(node.id);
+					break;
+				}
+			}
+		}
+
+		return set;
+	});
+
 	// Find startFromId using $derived.by for complex computation
 	const startFromId = $derived.by(() => {
 		for (const node of normalizedData.nodesById.values()) {
@@ -330,36 +385,7 @@
 	 * Simple check - no caching needed since WCFP_ID check is fast.
 	 */
 	function isNodeClickable(node: TaxonomyNodeNormalized): boolean {
-		// Only family, genus, and species ranks are clickable
-		if (node.rank !== 'family' && node.rank !== 'genus' && node.rank !== 'species') {
-			return false;
-		}
-
-		// Check if node has WCFP_IDs
-		const nodePath = node.path ?? '';
-		const taxonomyNode = findNodeByPath(taxonomyTree, nodePath);
-
-		if (!taxonomyNode) {
-			return false;
-		}
-
-		if (node.rank === 'species') {
-			const wcfpId = taxonomyNode.wcfpId;
-			return typeof wcfpId === 'number' && wcfpIdsWithSpatialData.has(wcfpId);
-		}
-
-		if (!schema || !schema.ranks) {
-			return false;
-		}
-
-		const ids = getWcfpIdsForNode(taxonomyNode, schema);
-		for (const id of ids) {
-			if (wcfpIdsWithSpatialData.has(id)) {
-				return true;
-			}
-		}
-
-		return false;
+		return clickableNodeIds.has(node.id);
 	}
 </script>
 

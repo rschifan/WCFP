@@ -53,13 +53,14 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 
    Once you have the data files, place them in the `data/` directory.
 
-5. Generate static data files (if needed):
+5. Build the DuckDB database used by the app runtime:
 
    ```bash
-   pnpm preprocess:species
-   node scripts/preprocess-taxonomy.js
-   node scripts/preprocess-taxonomy-tree.js
+   pnpm refresh:data
    ```
+
+   This rebuilds `data/wcfp.duckdb` from the canonical `WCFP_260120` sheet in `data/3.WCFP.xlsx`
+   together with the geographic distribution CSV and shapefile.
 
 6. Start the development server:
 
@@ -78,7 +79,8 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 - `pnpm check` - Run TypeScript type checking
 - `pnpm test` - Run tests
 - `pnpm format` - Format code with Prettier
-- `pnpm preprocess:species` - Generate WCFP species data files from source CSV/XLSX
+- `pnpm refresh:data` - Rebuild the DuckDB database used at runtime
+- `pnpm build:db` - Rebuild `data/wcfp.duckdb`
 
 ## Building for Production
 
@@ -86,7 +88,7 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 pnpm build
 ```
 
-The production build will be output to the `build/` directory, ready for static hosting.
+The production build will be output to the `build/` directory as an adapter-node server bundle.
 
 ## Deployment
 
@@ -102,13 +104,14 @@ The project includes automated CI/CD pipelines:
 
 - **Deploy Pipeline**: Runs on push to `main` branch
   - Builds the project
-  - Deploys via SFTP/SSH to the web server
+  - Deploys the Node server bundle to the web server
   - [![Deploy](https://github.com/rschifan/WCFP/workflows/Deploy/badge.svg)](https://github.com/rschifan/WCFP/actions/workflows/deploy.yml)
 
 ### Setting Up Automated Deployment
 
 1. **Prepare SSH Key**:
    - Generate an SSH key pair **without a passphrase** (required for CI/CD):
+
      ```bash
      ssh-keygen -t ed25519 -a 100 -C "github-actions-deploy" -f ~/.ssh/deploy_key -N ""
      ```
@@ -117,6 +120,7 @@ The project includes automated CI/CD pipelines:
      - `-a 100`: Number of KDF rounds (security hardening)
      - `-N ""`: Empty passphrase (required for automated workflows)
      - `-f ~/.ssh/deploy_key`: Output file path
+
    - Add the **public key** to your server's `~/.ssh/authorized_keys`:
      ```bash
      ssh-copy-id -i ~/.ssh/deploy_key.pub user@your-server.com
@@ -126,6 +130,7 @@ The project includes automated CI/CD pipelines:
      cat ~/.ssh/deploy_key.pub | ssh user@your-server.com "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
      ```
    - Copy the **private key** content to GitHub Secrets:
+
      ```bash
      cat ~/.ssh/deploy_key
      ```
@@ -153,14 +158,14 @@ The project includes automated CI/CD pipelines:
 
 ### Manual Deployment
 
-For manual deployments, you can use SFTP/SCP to upload the `build/` directory:
+For manual deployments, build the server bundle and run it on the target host:
 
 ```bash
 # Build the project
 pnpm build
 
-# Deploy via SCP
-scp -r build/* user@your-server.com:/var/www/html/
+# Start the adapter-node server
+node build
 ```
 
 ## Environment Variables

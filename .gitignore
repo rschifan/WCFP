@@ -71,3 +71,6 @@ vite.config.ts.timestamp-*
 # Internal working docs — collaborator emails and unlisted Drive links.
 # Kept on disk, out of this public repository.
 docs/
+
+# Local agent instructions — never committed.
+CLAUDE.md

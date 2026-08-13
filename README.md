@@ -211,6 +211,19 @@ The WCFP application uses preprocessing scripts to transform large source data f
 3. Download from the original WCFP data source
 4. Place files in the `data/` directory before running preprocessing scripts
 
+**Verifying what you received.** `data/MANIFEST.sha256` records the SHA-256 of every
+source input the build consumes, plus the generated database. The files themselves are
+not in this repository — only their checksums — so provenance is public even though the
+data is distributed on request. From the repository root:
+
+```bash
+sha256sum -c data/MANIFEST.sha256
+```
+
+All five entries must report `OK`. A mismatch means your copy differs from the one the
+deployed database was built from, and `pnpm refresh:data` would produce a different
+result.
+
 ## Contributing
 
 1. Fork the repository

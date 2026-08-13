@@ -3,10 +3,10 @@
  */
 
 /**
- * Use categories for a species (from WCFP columns C-F, H-M)
- * Note: HumanFood (column G) is intentionally excluded
+ * Use categories for a species (from WCFP columns D-M)
  */
 export interface SpeciesUses {
+	humanFood?: boolean;
 	animalFood?: boolean;
 	environmentalUses?: boolean;
 	fuels?: boolean;
@@ -31,6 +31,8 @@ export interface Species {
 	lifeform?: string;
 	cwr?: boolean;
 	uses?: SpeciesUses;
+	sourceLink?: string;
+	referencesAll?: string[];
 }
 
 /**

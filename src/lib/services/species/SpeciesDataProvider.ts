@@ -3,11 +3,6 @@ import type { Species, RegionStats } from '$lib/types/species';
 /**
  * Provider contract for species data access.
  * All implementations must support caching and error handling.
- *
- * Implementations:
- * - JsonSpeciesProvider: Lazy-loaded JSON files from static CDN
- * - ApiSpeciesProvider: REST API backend
- * - DuckDBSpeciesProvider: Client-side DuckDB-WASM database
  */
 export interface SpeciesDataProvider {
 	/**

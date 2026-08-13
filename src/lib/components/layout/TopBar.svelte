@@ -1,24 +1,35 @@
 <script lang="ts">
 	import { AppBar, Dialog, Portal } from '@skeletonlabs/skeleton-svelte';
-	import { Menu, Globe, ListTree, Info, X } from 'lucide-svelte';
+	import { Menu, House, Globe, ListTree, Info, X } from 'lucide-svelte';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+
+	type NavHref = '/' | '/map' | '/taxonomy' | '/about';
+
+	type NavItem = {
+		href: NavHref;
+		label: string;
+		icon: typeof House;
+		aliases?: readonly string[];
+	};
 
 	/**
 	 * Navigation items configuration
 	 * Centralized for maintainability and easy extension
 	 */
 	const navItems = [
-		{ href: '/', label: 'Map', icon: Globe },
-		{ href: '/taxonomy-map', label: 'Taxonomy', icon: ListTree },
+		{ href: '/', label: 'Home', icon: House },
+		{ href: '/map', label: 'Map', icon: Globe },
+		{ href: '/taxonomy', label: 'Taxonomy', icon: ListTree, aliases: ['/taxonomy-map'] },
 		{ href: '/about', label: 'About', icon: Info }
-	] as const;
+	] satisfies NavItem[];
 
 	/**
 	 * Check if current pathname matches route
 	 * Function reads reactive page state, so it's automatically reactive (Svelte 5)
 	 */
-	function isActive(href: string): boolean {
-		return page.url.pathname === href;
+	function isActive(href: string, aliases?: readonly string[]): boolean {
+		return page.url.pathname === href || aliases?.includes(page.url.pathname) === true;
 	}
 
 	const animBackdrop =
@@ -47,15 +58,14 @@
 								</Dialog.CloseTrigger>
 							</header>
 							<nav aria-label="Mobile navigation" class="flex flex-col gap-2">
-								{#each navItems as { href, label, icon: Icon } (href)}
-									{@const active = isActive(href)}
+								{#each navItems as { href, label, icon: Icon, aliases } (href)}
+									{@const active = isActive(href, aliases)}
+									{@const resolvedHref = resolve(href)}
 									<a
-										{href}
+										href={resolvedHref}
 										data-sveltekit-preload-data="hover"
 										class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-											{active
-											? 'bg-surface-active-token text-[#80cbc4]'
-											: 'text-on-surface-token hover:bg-surface-hover-token'}"
+											{active ? 'app-accent-nav-active' : 'text-on-surface-token hover:bg-surface-hover-token'}"
 										aria-current={active ? 'page' : undefined}
 									>
 										<Icon class="h-4 w-4" aria-hidden="true" />
@@ -69,8 +79,9 @@
 			</Dialog>
 		</AppBar.Lead>
 		<AppBar.Headline>
+			{@const homeHref = resolve('/')}
 			<a
-				href="/"
+				href={homeHref}
 				data-sveltekit-preload-data="hover"
 				class="text-2xl font-semibold transition-opacity hover:opacity-80"
 			>
@@ -79,15 +90,14 @@
 			</a>
 		</AppBar.Headline>
 		<AppBar.Trail class="hidden items-center gap-1 md:flex">
-			{#each navItems as { href, label, icon: Icon } (href)}
-				{@const active = isActive(href)}
+			{#each navItems as { href, label, icon: Icon, aliases } (href)}
+				{@const active = isActive(href, aliases)}
+				{@const resolvedHref = resolve(href)}
 				<a
-					{href}
+					href={resolvedHref}
 					data-sveltekit-preload-data="hover"
 					class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-						{active
-						? 'bg-surface-active-token text-[#80cbc4]'
-						: 'text-on-surface-token hover:bg-surface-hover-token'}"
+							{active ? 'app-accent-nav-active' : 'text-on-surface-token hover:bg-surface-hover-token'}"
 					aria-current={active ? 'page' : undefined}
 				>
 					<Icon class="h-4 w-4" aria-hidden="true" />

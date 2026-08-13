@@ -1,4 +1,5 @@
 import type {
+	TaxonomicRank,
 	TaxonomyNode,
 	TaxonomyNodeNormalized,
 	TaxonomyTreeIndex,
@@ -19,16 +20,16 @@ export function normalizeTaxonomyTree(data: TaxonomyNode): TaxonomyTreeIndex {
 	// Extract schema (if present) so we can infer ranks from depth.
 	const schema: TaxonomySchema | undefined = (data as TaxonomyNode).schema;
 
-	function inferRank(depth: number): string {
+	function inferRank(depth: number): TaxonomicRank {
 		if (!schema || !Array.isArray(schema.ranks) || schema.ranks.length === 0) {
 			// Fallback: keep existing behaviour when schema is not available.
 			// In that case we expect node.rank to be populated.
 			return 'root';
 		}
 		// Clamp depth to valid range
-		if (depth < 0) return schema.ranks[0];
-		if (depth >= schema.ranks.length) return schema.ranks[schema.ranks.length - 1];
-		return schema.ranks[depth];
+		if (depth < 0) return schema.ranks[0] as TaxonomicRank;
+		if (depth >= schema.ranks.length) return schema.ranks[schema.ranks.length - 1] as TaxonomicRank;
+		return schema.ranks[depth] as TaxonomicRank;
 	}
 
 	function walk(
@@ -47,18 +48,26 @@ export function normalizeTaxonomyTree(data: TaxonomyNode): TaxonomyTreeIndex {
 		);
 
 		// Prefer explicit rank if present; otherwise infer from schema and depth
-		const rank = (node.rank as string | undefined) ?? inferRank(depth);
+		const rank = node.rank ?? inferRank(depth);
 
 		nodesById.set(id, {
 			id,
 			name: node.name,
 			nameLower: node.name.toLowerCase(),
-			rank: rank as any,
+			rank,
 			count: node.count ?? 0,
+			childCount: childrenIds.length,
 			childrenIds,
+			childrenLoaded: true,
 			parentId, // Explicitly null for root, string for all others
 			path,
-			depth
+			depth,
+			...(typeof node.wcfpId === 'number' ? { wcfpId: node.wcfpId } : {}),
+			...(node.authors ? { authors: node.authors } : {}),
+			...(node.hasDistribution !== undefined ? { hasDistribution: node.hasDistribution } : {}),
+			...(typeof node.distributionAreaCount === 'number'
+				? { distributionAreaCount: node.distributionAreaCount }
+				: {})
 		});
 
 		return id;

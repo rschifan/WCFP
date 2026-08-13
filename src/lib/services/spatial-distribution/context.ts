@@ -19,7 +19,7 @@ const SPATIAL_DISTRIBUTION_SERVICE_KEY = Symbol('spatialDistributionService');
  *
  * @example
  * ```typescript
- * const service = createSpatialDistributionService(speciesProvider);
+ * const service = createSpatialDistributionService();
  * setSpatialDistributionService(service);
  * ```
  */
@@ -37,7 +37,7 @@ export function setSpatialDistributionService(service: ISpatialDistributionServi
  * @example
  * ```typescript
  * const service = useSpatialDistributionService();
- * const distribution = await service.getDistributionForNode(node, families, geoJSON);
+ * const distribution = await service.getDistributionForNode(node);
  * ```
  */
 export function useSpatialDistributionService(): ISpatialDistributionService {

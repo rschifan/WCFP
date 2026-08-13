@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { formatCountMaxDigits } from '$lib/utils/format';
 
-	type Position = 'top' | 'bottom';
+	type Position = 'top' | 'bottom' | 'bottom-left';
 
 	interface LegendColors {
 		low: string;
@@ -20,6 +20,8 @@
 		colors?: LegendColors;
 		showLevelLabels?: boolean;
 		maxDigits?: number;
+		noDataColor?: string;
+		noDataLabel?: string;
 	}
 
 	let {
@@ -32,7 +34,9 @@
 		className = '',
 		colors = { low: '#e5f5e0', mid: '#a1d99b', high: '#31a354' },
 		showLevelLabels = false,
-		maxDigits = 4
+		maxDigits = 4,
+		noDataColor,
+		noDataLabel = 'No data'
 	}: Props = $props();
 
 	const subtitleId = $derived(
@@ -43,14 +47,17 @@
 				.replace(/[^a-z0-9]+/g, '-') || 'legend'
 		}`
 	);
-	const positionClass = $derived(position === 'bottom' ? 'bottom-2' : 'top-6');
+	const positionClass = $derived(
+		position === 'bottom-left' ? 'bottom-4 left-4' : position === 'bottom' ? 'bottom-2' : 'top-6'
+	);
+	const centerClass = $derived(position === 'bottom-left' ? '' : 'left-1/2 -translate-x-1/2');
 	const gradientStyle = $derived(
 		`background: linear-gradient(to right, ${colors.low} 0%, ${colors.mid} 50%, ${colors.high} 100%);`
 	);
 </script>
 
 <div
-	class={`absolute left-1/2 -translate-x-1/2 ${positionClass} z-10 ${className}`}
+	class={`absolute ${centerClass} ${positionClass} z-10 ${className}`}
 	role="group"
 	aria-label={title}
 	aria-describedby={subtitle ? subtitleId : undefined}
@@ -91,6 +98,17 @@
 					{/if}
 				</div>
 			</div>
+
+			{#if noDataColor}
+				<div class="flex items-center gap-2 text-xs text-slate-600">
+					<span
+						class="h-3 w-3 border border-slate-300"
+						style={`background-color: ${noDataColor};`}
+						aria-hidden="true"
+					></span>
+					<span>{noDataLabel}</span>
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>

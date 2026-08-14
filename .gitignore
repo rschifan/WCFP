@@ -72,5 +72,6 @@ vite.config.ts.timestamp-*
 # Kept on disk, out of this public repository.
 docs/
 
-# Local agent instructions — never committed.
+# Local agent instructions and tooling — never committed.
 CLAUDE.md
+.claude/

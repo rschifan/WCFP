@@ -39,7 +39,7 @@
 	<title>Taxonomy | World Checklist of Food Plants</title>
 	<meta
 		name="description"
-		content="Browse food plant species by taxonomic classification and traits through the World Checklist of Food Plants taxonomy view."
+		content="Browse food plant taxa by taxonomic classification and traits through the World Checklist of Food Plants taxonomy view."
 	/>
 </svelte:head>
 

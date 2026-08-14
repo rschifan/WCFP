@@ -4,7 +4,8 @@
  * Build DuckDB database from source data files.
  *
  * Input:
- *   - data/3.WCFP.xlsx             (26,632 species with full taxonomy + uses)
+ *   - data/3.WCFP.xlsx             (26,632 rows / 26,622 distinct taxa, with taxonomy + uses;
+ *                                   ten pairs share an IPNI id, pending an upstream fix)
  *   - data/1.geo_distr_taxa.csv    (376K distribution rows: WCFP_ID, area)
  *   - data/wgsrpd-master/level3/level3.shp  (TDWG Level-3 geometries)
  *

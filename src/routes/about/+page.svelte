@@ -7,11 +7,11 @@
 	import { aboutHelpSections } from '$lib/data/about-help';
 	import { contributors } from '$lib/data/contributors';
 
-	const summaryStats = [
-		{ label: 'Plant species', value: '26,632' },
-		{ label: 'Genera', value: '5,000+' },
-		{ label: 'Families', value: '400+' }
-	] as const;
+	const summaryStats: { label: string; value: string; note?: string }[] = [
+		{ label: 'Plant taxa', value: '26,622', note: '26,419 species' },
+		{ label: 'Genera', value: '5,009' },
+		{ label: 'Families', value: '412' }
+	];
 
 	const portalFeatures = [
 		{
@@ -57,7 +57,7 @@
 							<div class="mt-5 space-y-4 text-base leading-8 text-slate-700 md:text-lg">
 								<p>
 									The World Checklist of Food Plants 2026 is the most comprehensive global inventory
-									of plant species used as food by humans, spanning both cultivated taxa and wild
+									of plant taxa used as food by humans, spanning both cultivated taxa and wild
 									plants traditionally gathered for food.
 								</p>
 								<p>
@@ -78,6 +78,9 @@
 										<dd class="mt-2 text-3xl font-bold tracking-tight text-slate-900">
 											{stat.value}
 										</dd>
+										{#if stat.note}
+											<p class="mt-1 text-sm text-slate-500">{stat.note}</p>
+										{/if}
 									</div>
 								{/each}
 							</dl>

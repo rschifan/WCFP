@@ -28,7 +28,7 @@
 		{
 			label: 'Taxonomy',
 			href: '/taxonomy',
-			description: 'Browse species by taxonomic classification.',
+			description: 'Browse taxa by taxonomic classification.',
 			eyebrow: 'From a name',
 			icon: ListTree
 		}
@@ -88,10 +88,10 @@
 
 						<p class="mt-6 text-lg leading-8 text-slate-100 md:text-xl md:leading-9">
 							The WCFP 2026 is the most comprehensive <b class="underline"
-								>global inventory of food plant species</b
-							>, covering <b class="underline">26,632 species</b> across more than
-							<b class="underline">5,000 genera</b>
-							and <b class="underline">400 families</b>, both cultivated and wild.
+								>global inventory of food plant taxa</b
+							>, covering <b class="underline">26,622 taxa (26,419 species)</b> across
+							<b class="underline">5,009 genera</b>
+							and <b class="underline">412 families</b>, both cultivated and wild.
 						</p>
 					</div>
 

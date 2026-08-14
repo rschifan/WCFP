@@ -105,9 +105,9 @@
 					{#if totalSpeciesCount > 0}
 						<p class="mt-1 text-sm text-slate-600">
 							{#if browserSummary.hasActiveQuery && visibleSpeciesCount !== totalSpeciesCount}
-								<span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span> of {formatCount(totalSpeciesCount)} species
+								<span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span> of {formatCount(totalSpeciesCount)} taxa
 							{:else}
-								{formatCount(totalSpeciesCount)} species found
+								{formatCount(totalSpeciesCount)} taxa found
 							{/if}
 						</p>
 					{/if}

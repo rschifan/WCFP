@@ -74,7 +74,7 @@
 					{previewRegion}
 					onRegionClick={handleSelectRegion}
 					legendTitle="Count"
-					legendSubtitle="Food plant species"
+					legendSubtitle="Food plant taxa"
 					legendPosition="bottom-left"
 				/>
 			{/if}

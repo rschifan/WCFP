@@ -20,19 +20,19 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 		// Could warm up API connection or fetch popular regions
 	}
 
-	getCachedData(regionName: string): Species[] | null {
-		return this.cache.get(regionName) || null;
+	getCachedData(regionCode: string): Species[] | null {
+		return this.cache.get(regionCode) || null;
 	}
 
-	async getSpeciesByRegion(regionName: string): Promise<Species[]> {
+	async getSpeciesByRegion(regionCode: string): Promise<Species[]> {
 		// Check cache first
-		const cached = this.cache.get(regionName);
+		const cached = this.cache.get(regionCode);
 		if (cached) {
 			return cached;
 		}
 
 		// Fetch from API
-		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionName)}/species`;
+		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionCode)}/species`;
 
 		try {
 			return await profileApiQuery(url, async () => {
@@ -43,8 +43,8 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 						// Expected: region has no data
 						throw new ServiceError(
 							ServiceErrorCode.DATA_NOT_FOUND,
-							`No species data found for region: ${regionName}`,
-							{ regionName, status: 404 }
+							`No species data found for region ${regionCode}`,
+							{ regionCode, status: 404 }
 						);
 					}
 
@@ -52,7 +52,7 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 					throw new ServiceError(
 						ServiceErrorCode.NETWORK_ERROR,
 						`HTTP ${response.status}: ${response.statusText}`,
-						{ regionName, status: response.status, statusText: response.statusText }
+						{ regionCode, status: response.status, statusText: response.statusText }
 					);
 				}
 
@@ -63,8 +63,8 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 					// JSON parsing error
 					throw new ServiceError(
 						ServiceErrorCode.INVALID_DATA,
-						`Failed to parse API response for region: ${regionName}`,
-						{ regionName, parseError }
+						`Failed to parse API response for region ${regionCode}`,
+						{ regionCode, parseError }
 					);
 				}
 
@@ -78,12 +78,12 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 					throw new ServiceError(
 						ServiceErrorCode.INVALID_DATA,
 						'Invalid API response format: expected array of species',
-						{ regionName, dataType: typeof species }
+						{ regionCode, dataType: typeof species }
 					);
 				}
 
 				// Cache it
-				this.cache.set(regionName, species as Species[]);
+				this.cache.set(regionCode, species as Species[]);
 
 				return species as Species[];
 			});
@@ -97,15 +97,15 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new ServiceError(
 				ServiceErrorCode.UNKNOWN_ERROR,
-				`Failed to load species for "${regionName}": ${message}`,
-				{ regionName, originalError: err }
+				`Failed to load species for region ${regionCode}: ${message}`,
+				{ regionCode, originalError: err }
 			);
 		}
 	}
 
-	async getRegionStats(regionName: string): Promise<RegionStats> {
+	async getRegionStats(regionCode: string): Promise<RegionStats> {
 		// API can pre-calculate stats server-side (more efficient!)
-		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionName)}/stats`;
+		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionCode)}/stats`;
 
 		try {
 			return await profileApiQuery(url, async () => {
@@ -116,15 +116,15 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 						// No stats for this region is treated as DATA_NOT_FOUND
 						throw new ServiceError(
 							ServiceErrorCode.DATA_NOT_FOUND,
-							`No stats found for region: ${regionName}`,
-							{ regionName, status: 404 }
+							`No stats found for region ${regionCode}`,
+							{ regionCode, status: 404 }
 						);
 					}
 
 					throw new ServiceError(
 						ServiceErrorCode.NETWORK_ERROR,
 						`HTTP ${response.status}: ${response.statusText}`,
-						{ regionName, status: response.status, statusText: response.statusText }
+						{ regionCode, status: response.status, statusText: response.statusText }
 					);
 				}
 
@@ -134,8 +134,8 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 				} catch (parseError) {
 					throw new ServiceError(
 						ServiceErrorCode.INVALID_DATA,
-						`Failed to parse stats response for region: ${regionName}`,
-						{ regionName, parseError }
+						`Failed to parse stats response for region ${regionCode}`,
+						{ regionCode, parseError }
 					);
 				}
 
@@ -176,7 +176,7 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 					!Array.isArray(normalized.topFamilies)
 				) {
 					throw new ServiceError(ServiceErrorCode.INVALID_DATA, 'Invalid stats response format', {
-						regionName,
+						regionCode,
 						result
 					});
 				}
@@ -191,8 +191,8 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new ServiceError(
 				ServiceErrorCode.UNKNOWN_ERROR,
-				`Failed to load stats for "${regionName}": ${message}`,
-				{ regionName, originalError: err }
+				`Failed to load stats for region ${regionCode}: ${message}`,
+				{ regionCode, originalError: err }
 			);
 		}
 	}

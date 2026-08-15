@@ -8,28 +8,28 @@ export interface SpeciesDataProvider {
 	/**
 	 * Fetch all species for a given region.
 	 *
-	 * @param regionName - TDWG Level 3 region name (e.g., "Costa Rica", "Afghanistan")
+	 * @param regionCode - TDWG Level 3 code (e.g., "COS", "AFG")
 	 * @returns Array of species found in the region
 	 * @throws {Error} If region not found or network error
 	 */
-	getSpeciesByRegion(regionName: string): Promise<Species[]>;
+	getSpeciesByRegion(regionCode: string): Promise<Species[]>;
 
 	/**
 	 * Get cached data synchronously (if available).
 	 * Useful for optimistic UI updates without loading states.
 	 *
-	 * @param regionName - Region name to look up
+	 * @param regionCode - TDWG Level 3 code to look up
 	 * @returns Species array if cached, null otherwise
 	 */
-	getCachedData(regionName: string): Species[] | null;
+	getCachedData(regionCode: string): Species[] | null;
 
 	/**
 	 * Get aggregated statistics for a region.
 	 *
-	 * @param regionName - Region name
+	 * @param regionCode - TDWG Level 3 code
 	 * @returns Statistics including total species, family count, and top families
 	 */
-	getRegionStats(regionName: string): Promise<RegionStats>;
+	getRegionStats(regionCode: string): Promise<RegionStats>;
 
 	/**
 	 * Initialize provider (load databases, warm up connections, etc.).

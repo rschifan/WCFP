@@ -54,7 +54,7 @@ export interface RegionStats {
 }
 
 export interface TopFamily {
-	area: string;
+	code: string;
 	family: string;
 	cnt: number;
 	rank: number;

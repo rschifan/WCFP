@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 const SOURCE = resolve(repoRoot, 'data/wgsrpd-master/geojson/level4.geojson');
+const COUNTS = resolve(repoRoot, 'data/TDWG3_count_wcfp_ISO_R1.csv');
 const NAMES = resolve(__dirname, 'data/iso-country-names.json');
 const OUT = resolve(repoRoot, 'static/data/region-countries.json');
 
@@ -48,8 +49,44 @@ function byCodePoint(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
 }
 
-// TDWG3 codes to exclude (mirrors queries.ts filter for 'ANT').
-const EXCLUDED_L3 = new Set(['ANT']);
+/**
+ * The regions the portal can actually show are exactly those in the published counts file.
+ * Deriving the set from that file rather than hardcoding exclusions means the search box can
+ * never offer a region that resolves to nothing — previously it listed Bouvet I. (`BOU`), which
+ * has no food plants and bounced the user straight back to the map.
+ */
+function readPublishedCodes() {
+	let csv;
+	try {
+		csv = readFileSync(COUNTS, 'utf8');
+	} catch (err) {
+		if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+			console.error(
+				`build-region-countries: published counts not found at ${COUNTS}.\n` +
+					`It defines which regions exist; see README "Obtain source data files".`
+			);
+			process.exit(1);
+		}
+		throw err;
+	}
+
+	const lines = csv.trim().split(/\r?\n/);
+	const header = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+	const codeIndex = header.indexOf('area_code_l3');
+	if (codeIndex === -1) {
+		console.error(`build-region-countries: no area_code_l3 column in ${COUNTS}.`);
+		process.exit(1);
+	}
+
+	return new Set(
+		lines
+			.slice(1)
+			.map((line) => line.split(',')[codeIndex]?.trim().replace(/^"|"$/g, ''))
+			.filter(Boolean)
+	);
+}
+
+const PUBLISHED_L3 = readPublishedCodes();
 
 let raw;
 try {
@@ -76,7 +113,7 @@ const isoToL3 = new Map();
 for (const f of raw.features) {
 	const iso = f.properties?.ISO_Code;
 	const l3 = f.properties?.Level3_cod;
-	if (!iso || !l3 || EXCLUDED_L3.has(l3)) continue;
+	if (!iso || !l3 || !PUBLISHED_L3.has(l3)) continue;
 	if (!l3ToIso.has(l3)) l3ToIso.set(l3, new Set());
 	l3ToIso.get(l3).add(iso);
 	if (!isoToL3.has(iso)) isoToL3.set(iso, new Set());

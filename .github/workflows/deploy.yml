@@ -1,10 +1,14 @@
 name: Deploy
 
+# DISARMED 2026-08-13, deliberately. Do not restore the `push` trigger until this
+# workflow has been rewritten for adapter-node (see Phase 9 of the cutover plan).
+#
+# As written below it: (a) runs no `pnpm check`, so it deploys even when the type
+# gate is red; (b) rsyncs `--delete` a build/ that adapter-node fills with .js, not
+# .html, over the live docroot at $SSH_REMOTE_PATH (= /var/www/wcfp/html); and
+# (c) "verifies" with `find … -name index.html | head -5`, whose exit status is
+# head's — so it reports success over a destroyed site.
 on:
-  push:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 # Set minimal permissions for security

@@ -3,10 +3,10 @@
  */
 
 /**
- * Use categories for a species (from WCFP columns C-F, H-M)
- * Note: HumanFood (column G) is intentionally excluded
+ * Use categories for a species (from WCFP columns D-M)
  */
 export interface SpeciesUses {
+	humanFood?: boolean;
 	animalFood?: boolean;
 	environmentalUses?: boolean;
 	fuels?: boolean;
@@ -23,6 +23,8 @@ export interface SpeciesUses {
  * Represents a single plant species
  */
 export interface Species {
+	/** Occurrence status in the region being viewed. Region-scoped results only. */
+	occurrenceStatus?: 'native' | 'introduced' | 'extinct' | 'doubtful';
 	wcfpId: number;
 	name: string;
 	authors: string;
@@ -31,6 +33,8 @@ export interface Species {
 	lifeform?: string;
 	cwr?: boolean;
 	uses?: SpeciesUses;
+	sourceLink?: string;
+	referencesAll?: string[];
 }
 
 /**

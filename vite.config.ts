@@ -7,6 +7,12 @@ import { sveltekit } from '@sveltejs/kit/vite';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
 
+	ssr: {
+		// These ESM-only d3 packages must be bundled by Vite for SSR;
+		// Node's CJS loader cannot resolve them as external modules.
+		noExternal: ['d3-geo', 'd3-zoom', 'd3-selection']
+	},
+
 	test: {
 		expect: { requireAssertions: true },
 

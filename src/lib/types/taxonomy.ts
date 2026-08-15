@@ -1,3 +1,5 @@
+import type { SpeciesUseKey, SpeciesUses } from './species';
+
 /**
  * Type definitions for taxonomy data and visualization
  */
@@ -30,22 +32,6 @@ export interface TaxonomySchema {
 }
 
 /**
- * Taxonomy path for a family - used in families.json lookup
- */
-export interface FamilyTaxonomy {
-	kingdom: string;
-	phylum: string;
-	class: string;
-	order: string;
-	speciesCount: number;
-}
-
-/**
- * The families.json lookup structure
- */
-export type FamilyLookup = Record<string, FamilyTaxonomy>;
-
-/**
  * A node in the taxonomy tree (for visualization)
  */
 export interface TaxonomyNode {
@@ -58,7 +44,7 @@ export interface TaxonomyNode {
 	rank?: TaxonomicRank;
 	/** Number of descendant taxa (including this node) */
 	count: number;
-	children: TaxonomyNode[] | any[]; // Can include load-more nodes (any[] for flexibility)
+	children: TaxonomyNode[];
 	/** Original child count (preserved when filtering collapsed nodes) */
 	_childCount?: number;
 	/** Optional stable ID if provided by data source */
@@ -70,6 +56,17 @@ export interface TaxonomyNode {
 	 * Present only for leaves in the schema-based taxonomy tree.
 	 */
 	wcfpId?: number;
+	/**
+	 * Optional authorship string on species nodes.
+	 * Used for inline display in the taxonomy browser.
+	 */
+	authors?: string;
+	/**
+	 * Whether this node or any of its descendants has spatial distribution data.
+	 * Used to determine if the node should be selectable for map interaction.
+	 */
+	hasDistribution?: boolean;
+	distributionAreaCount?: number;
 	/**
 	 * Optional schema definition on the root node.
 	 * Child nodes do not repeat this field.
@@ -87,9 +84,16 @@ export interface TaxonomyNodeNormalized {
 	/** Inferred rank based on depth + schema */
 	rank: TaxonomicRank;
 	count: number;
+	childCount: number;
 	childrenIds: string[];
+	childrenLoaded: boolean;
 	parentId: string | null; // null for root node, string for all others
 	path?: string;
+	wcfpId?: number;
+	authors?: string;
+	hasDistribution?: boolean;
+	distributionAreaCount?: number;
+	traits?: TaxonomyTraitEntry;
 	/**
 	 * Depth of this node in the tree, starting at 0 for the root.
 	 * Used for efficient rank inference without recomputing depth.
@@ -103,6 +107,59 @@ export interface TaxonomyNodeNormalized {
 export interface TaxonomyTreeIndex {
 	rootId: string;
 	nodesById: Map<string, TaxonomyNodeNormalized>;
+}
+
+/**
+ * Active filters for taxonomy browsing.
+ */
+export type OccurrenceStatusFilter = 'native' | 'introduced' | 'extinct' | 'doubtful';
+
+export interface TaxonomyFilters {
+	geographicOnly: boolean;
+	lifeforms: Set<string>;
+	uses: Set<SpeciesUseKey>;
+	/** Region-scoped only: restrict to taxa with this occurrence status. */
+	occurrenceStatus: OccurrenceStatusFilter | null;
+}
+
+export function createEmptyTaxonomyFilters(): TaxonomyFilters {
+	return {
+		geographicOnly: false,
+		lifeforms: new Set(),
+		uses: new Set(),
+		occurrenceStatus: null
+	};
+}
+
+export interface TaxonomyTraitEntry {
+	/** Region-scoped only: how this taxon occurs in the region being viewed. */
+	occurrenceStatus?: OccurrenceStatusFilter;
+	lifeforms: string[];
+	uses: SpeciesUseKey[];
+	signatures?: string[];
+	hasCwr?: boolean;
+}
+
+export type TaxonomyTraitIndex = Record<string, TaxonomyTraitEntry>;
+
+export interface TaxonomyBootstrapPayload {
+	rootId: string;
+	startFromId: string;
+	expandedIds: string[];
+	availableLifeforms: string[];
+	nodes: TaxonomyNodeNormalized[];
+}
+
+export interface TaxonomyChildrenPayload {
+	parentId: string;
+	nodes: TaxonomyNodeNormalized[];
+}
+
+export interface TaxonomyQueryPayload {
+	rootId: string;
+	startFromId: string;
+	expandedIds: string[];
+	nodes: TaxonomyNodeNormalized[];
 }
 
 /**
@@ -120,5 +177,7 @@ export interface EnrichedSpecies {
 	order: string;
 	lifeform?: string;
 	cwr?: boolean;
-	uses?: import('./species').SpeciesUses;
+	uses?: SpeciesUses;
+	sourceLink?: string;
+	referencesAll?: string[];
 }

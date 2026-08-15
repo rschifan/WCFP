@@ -1,221 +1,88 @@
 <script lang="ts">
-	import { SvelteSet } from 'svelte/reactivity';
-	import { getRankLabel } from '$lib/constants/tree';
-	import { Search, X, ChevronRight, SquareArrowOutUpRight } from 'lucide-svelte';
+	import {
+		HierarchyEntryRow,
+		SpeciesDetailHost,
+		createSpeciesDetailController,
+		createSpeciesRowInteraction,
+		type SpeciesDetailSource,
+		getTaxonomicEntryAppearance,
+		taxonomyBrowserPreset
+	} from '$lib/components/hierarchy';
+	import type { HierarchyEntryBadge, HierarchyEntryModel } from '$lib/types/hierarchy';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
-	import { TaxonomySearchIndex } from '$lib/utils/taxonomy/search';
 
 	interface Props {
 		data: TaxonomyTreeIndex;
 		startFromId?: string;
-		initialExpandedDepth?: number;
+		showStartNode?: boolean;
+		expandedIds: Set<string>;
+		onToggleExpanded?: (node: TaxonomyNodeNormalized) => void;
+		loadingNodeIds?: Set<string>;
 		onNodeSelect?: (node: TaxonomyNodeNormalized, path: string) => void;
 		class?: string;
-		/** Function to check if a node is clickable */
 		isNodeClickable?: (node: TaxonomyNodeNormalized) => boolean;
-		/** Optional external search query (if provided, uses this instead of internal state) */
-		searchQuery?: string;
-		/** Optional filter function to filter nodes (returns true to show node) */
-		filterNodes?: (node: TaxonomyNodeNormalized) => boolean;
-		/** Optional selected node ID for external selection highlighting */
+		getSpeciesDetailSource?: (node: TaxonomyNodeNormalized) => SpeciesDetailSource | null | undefined;
 		selectedNodeId?: string;
+		getNodeBadges?: (node: TaxonomyNodeNormalized) => readonly HierarchyEntryBadge[] | undefined;
+		highlightQuery?: string;
 	}
 
 	let {
 		data,
 		startFromId,
-		initialExpandedDepth = 0,
+		showStartNode = true,
+		expandedIds,
+		onToggleExpanded,
+		loadingNodeIds,
 		onNodeSelect,
 		class: className = '',
 		isNodeClickable,
-		searchQuery: externalSearchQuery,
-		filterNodes,
-		selectedNodeId: externalSelectedNodeId
+		getSpeciesDetailSource,
+		selectedNodeId: externalSelectedNodeId,
+		getNodeBadges,
+		highlightQuery = ''
 	}: Props = $props();
 
 	const rootId = $derived(startFromId ?? data.rootId);
 	const nodesById = $derived(data.nodesById);
-	const searchIndex = $derived(new TaxonomySearchIndex(nodesById));
+	const visibleRootIds = $derived.by(() => {
+		if (showStartNode) {
+			return [rootId];
+		}
 
-	let expandedNodes = new SvelteSet<string>();
+		const startNode = nodesById.get(rootId);
+		return startNode ? [...startNode.childrenIds] : [];
+	});
+	const detailController = createSpeciesDetailController();
 	let selectedId = $state<string | null>(null);
-	let internalSearchQuery = $state('');
-	let debouncedQuery = $state('');
 
-	// Sync external selectedNodeId with internal selectedId
 	$effect(() => {
 		if (externalSelectedNodeId !== undefined && externalSelectedNodeId !== selectedId) {
 			selectedId = externalSelectedNodeId;
 		}
 	});
 
-	// Use external searchQuery if provided, otherwise use internal state
-	const searchQuery = $derived(externalSearchQuery ?? internalSearchQuery);
-	const hasExternalSearch = $derived(externalSearchQuery !== undefined);
+	function safelyEvaluateNodePredicate(
+		node: TaxonomyNodeNormalized,
+		predicate: ((node: TaxonomyNodeNormalized) => boolean) | undefined,
+		label: 'clickability'
+	): boolean {
+		if (!predicate) return false;
 
-	const searchTerm = $derived(debouncedQuery.trim().toLowerCase());
-	const isSearching = $derived(searchTerm.length > 0);
-	const MAX_VISIBLE_RESULTS = 500;
-
-	// Debounce search query (only if using internal state)
-	$effect(() => {
-		if (hasExternalSearch) {
-			// Use external query directly, no debounce needed
-			debouncedQuery = searchQuery.trim();
-			return;
-		}
-		const currentQuery = internalSearchQuery;
-		const handle = setTimeout(() => {
-			debouncedQuery = currentQuery;
-		}, 200);
-		return () => clearTimeout(handle);
-	});
-
-	const searchResult = $derived.by(() => {
-		if (!searchTerm) return null;
-
-		const matchedNodeIds = searchIndex.smartSearch(searchTerm);
-		if (matchedNodeIds.size === 0) {
-			return {
-				childrenById: new Map<string, string[]>(),
-				expanded: new Set<string>(),
-				hasMatches: false
-			};
-		}
-
-		const visibleSet = new Set<string>();
-
-		// Build visible set with matched nodes and ancestors
-		for (const nodeId of matchedNodeIds) {
-			const node = nodesById.get(nodeId);
-			if (!node) continue;
-
-			// Apply filter if provided
-			if (filterNodes && !filterNodes(node)) {
-				continue;
-			}
-
-			visibleSet.add(nodeId);
-			const ancestors = searchIndex.getAncestors(nodeId);
-			for (const ancestorId of ancestors) {
-				visibleSet.add(ancestorId);
-			}
-			if (visibleSet.size > MAX_VISIBLE_RESULTS) break;
-		}
-
-		const childrenById: Map<string, string[]> = new Map();
-		const expanded = new Set<string>();
-
-		for (const nodeId of visibleSet) {
-			const node = nodesById.get(nodeId);
-			if (!node) continue;
-
-			const filteredChildren = node.childrenIds.filter((childId) => visibleSet.has(childId));
-			if (filteredChildren.length > 0) {
-				childrenById.set(nodeId, filteredChildren);
-				expanded.add(nodeId);
-			}
-		}
-
-		return { childrenById, expanded, hasMatches: true };
-	});
-
-	// Precompute descendant matches for filterNodes (avoids per-render recursion)
-	const filterMatchMap = $derived.by(() => {
-		const filterFn = filterNodes;
-		if (!filterFn) return null;
-		const matchMap = new Map<string, boolean>();
-
-		function nodeMatches(node: TaxonomyNodeNormalized): boolean {
-			try {
-				return filterFn?.(node) ?? false;
-			} catch (err) {
-				console.warn('[TaxonomyList] Error checking node filter:', err);
-				return false;
-			}
-		}
-
-		function dfs(nodeId: string): boolean {
-			const node = nodesById.get(nodeId);
-			if (!node) return false;
-
-			let hasMatch = nodeMatches(node);
-			for (const childId of node.childrenIds) {
-				if (dfs(childId)) {
-					hasMatch = true;
-				}
-			}
-			matchMap.set(nodeId, hasMatch);
-			return hasMatch;
-		}
-
-		dfs(rootId);
-		return matchMap;
-	});
-
-	// Expand nodes on mount and when rootId changes
-	$effect(() => {
-		const root = rootId;
-		expandedNodes.clear();
-		if (initialExpandedDepth >= 0) {
-			expandToDepth(root, 0, initialExpandedDepth);
-		}
-	});
-
-	function expandToDepth(nodeId: string, currentDepth: number, maxDepth: number) {
-		const node = nodesById.get(nodeId);
-		if (!node || currentDepth > maxDepth) return;
-		expandedNodes.add(nodeId);
-		for (const childId of node.childrenIds) {
-			expandToDepth(childId, currentDepth + 1, maxDepth);
+		try {
+			return predicate(node);
+		} catch (err) {
+			console.warn(`[TaxonomyList] Error checking node ${label}:`, err);
+			return false;
 		}
 	}
 
-	function getChildrenIds(nodeId: string): string[] {
-		if (searchResult) {
-			return searchResult.childrenById.get(nodeId) ?? [];
-		}
-		
-		const allChildren = nodesById.get(nodeId)?.childrenIds ?? [];
-		
-		// Apply filter if provided and not searching
-		if (filterNodes && filterMatchMap) {
-			return allChildren.filter((childId) => filterMatchMap.get(childId));
-		}
-		
-		return allChildren;
+	function getNodeBadgesFor(node: TaxonomyNodeNormalized): readonly HierarchyEntryBadge[] {
+		return getNodeBadges?.(node) ?? [];
 	}
 
-	function isExpandedEffective(nodeId: string): boolean {
-		return searchResult ? searchResult.expanded.has(nodeId) : expandedNodes.has(nodeId);
-	}
-
-	function splitByMatch(text: string, query: string): Array<{ text: string; isMatch: boolean }> {
-		if (!query.trim()) return [{ text, isMatch: false }];
-		const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-		const regex = new RegExp(`(${escapedQuery})`, 'gi');
-		const parts = text.split(regex);
-
-		return parts
-			.map((part, index) => ({ text: part, isMatch: index % 2 === 1 }))
-			.filter((item) => item.text !== '');
-	}
-
-	function toggleExpanded(nodeId: string, event: Event) {
-		event.stopPropagation();
-		const wasExpanded = expandedNodes.has(nodeId);
-		if (wasExpanded) {
-			expandedNodes.delete(nodeId);
-			console.log('[TaxonomyList] Collapsed node:', nodeId);
-		} else {
-			expandedNodes.add(nodeId);
-			console.log(
-				'[TaxonomyList] Expanded node:',
-				nodeId,
-				'expandedNodes size:',
-				expandedNodes.size
-			);
-		}
+	function getNodeAppearance(node: TaxonomyNodeNormalized) {
+		return getTaxonomicEntryAppearance(node.rank ?? 'default');
 	}
 
 	function selectNode(node: TaxonomyNodeNormalized, nodeId: string) {
@@ -223,58 +90,130 @@
 		onNodeSelect?.(node, node.path ?? nodeId);
 	}
 
-	function handleKeyDown(event: KeyboardEvent, nodeId: string, hasKids: boolean) {
-		if (event.key === 'Enter' || event.key === ' ') {
+	function buildTaxonomyEntry(
+		node: TaxonomyNodeNormalized,
+		nodeId: string,
+		hasKids: boolean,
+		expanded: boolean,
+		selected: boolean,
+		isClickable: boolean,
+		badges: readonly HierarchyEntryBadge[],
+		appearance: ReturnType<typeof getNodeAppearance>
+	): HierarchyEntryModel {
+		return {
+			id: nodeId,
+			title: node.name,
+			subtitle: node.authors,
+			subtitleDisplay: node.authors ? 'inline' : undefined,
+			count: hasKids ? node.childCount : undefined,
+			badges,
+			selected,
+			expandable: hasKids,
+			expanded,
+			interactive: !hasKids && isClickable,
+			...appearance
+		};
+	}
+
+	function buildSpeciesInteraction(
+		node: TaxonomyNodeNormalized,
+		nodeId: string,
+		selected: boolean,
+		isClickable: boolean,
+		badges: readonly HierarchyEntryBadge[],
+		appearance: ReturnType<typeof getNodeAppearance>
+	) {
+		if (node.rank !== 'species' || typeof node.wcfpId !== 'number') {
+			return null;
+		}
+
+		const detailSource = getSpeciesDetailSource?.(node) ?? { wcfpId: node.wcfpId };
+
+		return createSpeciesRowInteraction({
+			id: nodeId,
+			title: node.name,
+			subtitle: node.authors,
+			badges,
+			selected,
+			detailSource,
+			detailController,
+			appearance,
+			mapAction: isClickable
+				? {
+						enabled: true,
+						areaCount: node.distributionAreaCount ?? 0,
+						onOpenMap: () => selectNode(node, nodeId)
+					}
+				: undefined
+		});
+	}
+
+	function handleNodeRowClick(
+		node: TaxonomyNodeNormalized,
+		nodeId: string,
+		hasKids: boolean,
+		isClickable: boolean,
+		speciesInteraction: ReturnType<typeof buildSpeciesInteraction>,
+		trigger?: HTMLElement | null
+	) {
+		if (speciesInteraction) {
+			void speciesInteraction.onRowClick(trigger);
+			return;
+		}
+
+		if (hasKids) {
+			onToggleExpanded?.(node);
+			return;
+		}
+
+		if (isClickable) {
+			selectNode(node, nodeId);
+		}
+	}
+
+	function handleKeyDown(event: KeyboardEvent, node: TaxonomyNodeNormalized, hasKids: boolean) {
+		if (event.key === 'ArrowRight' && hasKids && !expandedIds.has(node.id)) {
 			event.preventDefault();
-			if (hasKids && !isSearching) toggleExpanded(nodeId, event);
-			// Navigation always works - don't call selectNode here
-			// Map icon button handles selection for nodes with spatial data
-		} else if (
-			event.key === 'ArrowRight' &&
-			hasKids &&
-			!isExpandedEffective(nodeId) &&
-			!isSearching
-		) {
+			onToggleExpanded?.(node);
+			return;
+		}
+
+		if (event.key === 'ArrowLeft' && hasKids && expandedIds.has(node.id)) {
 			event.preventDefault();
-			expandedNodes.add(nodeId);
-		} else if (event.key === 'ArrowLeft' && isExpandedEffective(nodeId) && !isSearching) {
-			event.preventDefault();
-			expandedNodes.delete(nodeId);
+			onToggleExpanded?.(node);
 		}
 	}
 </script>
 
-{#snippet highlightedText(text: string, query: string)}
-	{#each splitByMatch(text, query) as part, i (i)}
-		{#if part.isMatch}
-			<mark class="rounded bg-amber-200 px-0.5 text-amber-900">{part.text}</mark>
-		{:else}
-			{part.text}
-		{/if}
-	{/each}
-{/snippet}
-
-{#snippet nodeItem(nodeId: string, depth: number)}
-		{@const node = nodesById.get(nodeId)}
-		{#if node}
-			{@const childIds = getChildrenIds(nodeId)}
-			{@const hasKids = childIds.length > 0}
-			{@const hasOriginalChildren = (node.childrenIds?.length ?? 0) > 0}
-			{@const expanded = isExpandedEffective(nodeId)}
-			{@const selected = selectedId === nodeId || externalSelectedNodeId === nodeId}
-			{@const isClickable = isNodeClickable
-				? (() => {
-						try {
-							return isNodeClickable(node);
-						} catch (err) {
-							console.warn('[TaxonomyList] Error checking node clickability:', err);
-							return false;
-						}
-					})()
-				: false}
-			{@const isFamilyOrBelow = node.rank === 'family' || node.rank === 'genus' || node.rank === 'species'}
-			{@const shouldShowIcon = isClickable && hasOriginalChildren && isFamilyOrBelow}
-			{@const shouldShowIconDebug = isClickable && hasOriginalChildren}
+{#snippet nodeItem(nodeId: string)}
+	{@const node = nodesById.get(nodeId)}
+	{#if node}
+		{@const childIds = node.childrenIds}
+		{@const hasKids = node.childrenLoaded ? childIds.length > 0 : node.childCount > 0}
+		{@const expanded = expandedIds.has(nodeId)}
+		{@const selected = selectedId === nodeId || externalSelectedNodeId === nodeId}
+		{@const isClickable = safelyEvaluateNodePredicate(node, isNodeClickable, 'clickability')}
+		{@const appearance = getNodeAppearance(node)}
+		{@const badges = getNodeBadgesFor(node)}
+		{@const speciesInteraction = buildSpeciesInteraction(
+			node,
+			nodeId,
+			selected,
+			isClickable,
+			badges,
+			appearance
+		)}
+		{@const entry = buildTaxonomyEntry(
+			node,
+			nodeId,
+			hasKids,
+			expanded,
+			selected,
+			isClickable,
+			badges,
+			appearance
+		)}
+		{@const isLoading = loadingNodeIds?.has(nodeId) ?? false}
 
 		<li
 			class="m-0 list-none p-0"
@@ -282,145 +221,49 @@
 			aria-expanded={hasKids ? expanded : undefined}
 			aria-selected={selected}
 		>
-			<div
-				class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1 transition-colors duration-150 {hasKids
-					? 'hover:bg-slate-100'
-					: ''} {selected ? 'bg-slate-50' : ''}"
-			>
-				<!-- Navigation Button (expand/collapse) -->
-				<button
-					type="button"
-					class="group relative z-10 flex min-w-0 flex-1 items-center gap-1.5 border-none bg-transparent text-left {hasKids || isClickable
-						? 'cursor-pointer'
-						: 'cursor-default'}"
-					onclick={(event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						// Leaf nodes (no children) that are clickable should open the map directly
-						if (!hasKids && isClickable) {
-							console.log('[TaxonomyList] Clicking leaf node with spatial data:', node.name, nodeId);
-							selectNode(node, nodeId);
-							return;
-						}
-						// If node has children, expand/collapse
-						if (hasKids && !isSearching) {
-							toggleExpanded(nodeId, event);
-						}
-					}}
-					onkeydown={(e) => {
-						if (!hasKids && isClickable && (e.key === 'Enter' || e.key === ' ')) {
-							e.preventDefault();
-							e.stopPropagation();
-							selectNode(node, nodeId);
-						} else {
-							handleKeyDown(e, nodeId, hasKids);
-						}
-					}}
-					aria-disabled={hasKids ? (isSearching ? true : false) : false}
-					aria-expanded={hasKids ? expanded : undefined}
-				>
-					<!-- Expand/Collapse Chevron -->
-					<ChevronRight
-						class="h-3.5 w-3.5 shrink-0 text-slate-400 transition-transform duration-200 {expanded
-							? 'rotate-90'
-							: ''} {!hasKids ? 'invisible' : ''}"
-					/>
+			<HierarchyEntryRow
+				entry={speciesInteraction?.entry ?? entry}
+				preset={taxonomyBrowserPreset}
+				highlightQuery={highlightQuery}
+				ariaDisabled={isLoading}
+				onRowClick={(trigger) =>
+					handleNodeRowClick(node, nodeId, hasKids, isClickable, speciesInteraction, trigger)}
+				onRowKeyDown={(event) => handleKeyDown(event, node, hasKids)}
+				onAction={speciesInteraction?.onAction}
+			/>
 
-					<!-- Main Content -->
-					<span class="min-w-0 flex-1 truncate text-sm font-semibold {isClickable ? 'text-[#80cbc4]' : 'text-slate-700'} {selected ? 'underline' : ''}">
-						{#if isSearching}
-							{@render highlightedText(node.name, debouncedQuery)}
-						{:else}
-							{node.name}
-						{/if}
-					</span>
-				</button>
-
-				<!-- Map Icon (if clickable and has children, and is family or below) - before count badge -->
-				{#if shouldShowIcon}
-					<!-- Debug: {node.name} (rank: {node.rank}) - isClickable: {isClickable}, hasOriginalChildren: {hasOriginalChildren}, isFamilyOrBelow: {isFamilyOrBelow}, childrenIds.length: {node.childrenIds?.length ?? 0}, shouldShowIcon: {shouldShowIcon} -->
-					<button
-						type="button"
-						class="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#80cbc4] transition-colors duration-150 hover:bg-slate-100 hover:text-[#80cbc4] focus:outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-slate-500 active:bg-slate-200"
-						title="View spatial distribution map"
-						aria-label="View spatial distribution map for {node.name}"
-						onclick={(event) => {
-							event.stopPropagation();
-							selectNode(node, nodeId);
-						}}
-						onkeydown={(e) => {
-							if (e.key === 'Enter' || e.key === ' ') {
-								e.preventDefault();
-								e.stopPropagation();
-								selectNode(node, nodeId);
-							}
-						}}
-					>
-						<SquareArrowOutUpRight class="h-3.5 w-3.5" aria-hidden="true" />
-					</button>
-				{/if}
-
-				<!-- Count Badge (if has children) - fixed width for alignment -->
-				{#if hasKids}
-					<span
-						class="flex min-w-[2rem] items-center justify-center rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-600 group-hover:bg-slate-300"
-					>
-						{childIds.length}
-					</span>
-				{/if}
-			</div>
-
-			{#if hasKids && expanded}
+			{#if expanded && isLoading}
+				<div class="ml-5 border-l-2 border-slate-200 pl-4">
+					<div class="flex items-center gap-2 py-2 text-sm text-slate-500">
+						<span
+							class="app-spinner-accent h-4 w-4 animate-spin rounded-full border-2 border-slate-300"
+						></span>
+						<span>Loading…</span>
+					</div>
+				</div>
+			{:else if hasKids && expanded}
 				<div class="ml-5 border-l-2 border-slate-200 pl-4">
 					<ul class="m-0 list-none p-0" role="group">
 						{#each childIds as childId (childId)}
-							{@render nodeItem(childId, depth + 1)}
+							{@render nodeItem(childId)}
 						{/each}
 					</ul>
 				</div>
 			{/if}
 		</li>
-		{/if}
+	{/if}
 {/snippet}
 
 <div class="flex h-full flex-col overflow-hidden bg-slate-50 {className}">
-	{#if !hasExternalSearch}
-		<!-- Internal search UI - only show if external searchQuery prop is not provided -->
-		<div class="sticky top-0 z-10 bg-white px-3 py-2">
-			<div class="relative">
-				<Search class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
-				<input
-					type="text"
-					value={internalSearchQuery}
-					oninput={(e) => (internalSearchQuery = e.currentTarget.value)}
-					placeholder="Search"
-					class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pr-10 pl-10 text-sm text-black transition-colors placeholder:text-slate-400 focus:border-sky-300 focus:bg-white focus:ring-2 focus:ring-sky-100 focus:outline-none"
-				/>
-				{#if internalSearchQuery}
-					<button
-						type="button"
-						onclick={() => (internalSearchQuery = '')}
-						class="absolute top-1/2 right-3 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-						aria-label="Clear search"
-					>
-						<X class="h-4 w-4" />
-					</button>
-				{/if}
-			</div>
-		</div>
-	{/if}
+	<ul
+		class="m-0 flex-1 list-none overflow-x-hidden overflow-y-auto px-2 pb-8"
+		role="tree"
+		aria-label="Taxonomy hierarchy"
+	>
+		{#each visibleRootIds as visibleRootId (visibleRootId)}
+			{@render nodeItem(visibleRootId)}
+		{/each}
+	</ul>
 
-	{#if isSearching && searchResult && !searchResult.hasMatches}
-		<div class="flex flex-1 items-center justify-center text-sm text-slate-500">
-			No results found
-		</div>
-	{:else}
-		<ul
-			class="m-0 flex-1 list-none overflow-x-hidden overflow-y-auto px-2 pb-8"
-			role="tree"
-			aria-label="Taxonomy hierarchy"
-		>
-			{@render nodeItem(rootId, 0)}
-		</ul>
-	{/if}
+	<SpeciesDetailHost controller={detailController} />
 </div>

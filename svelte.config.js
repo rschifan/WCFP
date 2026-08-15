@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-static';
+import adapter from '@sveltejs/adapter-node';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
@@ -8,15 +8,11 @@ const config = {
 	preprocess: vitePreprocess(),
 
 	kit: {
-		// adapter-static generates a static site for deployment via SFTP
-		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter({
-			pages: 'build',
-			assets: 'build',
-			fallback: 'index.html', // Fallback for client-side routing
-			precompress: false,
-			strict: true
-		}),
+		// The application relies on SSR/API routes backed by DuckDB, so adapter-node is required.
+		adapter: adapter(),
+		paths: {
+			base: process.env.BASE_PATH ?? ''
+		},
 		prerender: {
 			handleHttpError: 'warn'
 		}

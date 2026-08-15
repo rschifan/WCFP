@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction B — Editorial landing</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{font-family:ui-sans-serif,system-ui,-apple-system,sans-serif}</style>
+</head>
+<body class="bg-white">
+<div class="flex min-h-screen w-screen flex-col">
+	<!-- Top bar -->
+	<header class="flex h-14 shrink-0 items-center justify-between border-b border-amber-900/10 bg-white px-6">
+		<div class="flex items-center gap-2">
+			<div class="h-7 w-7 rounded bg-amber-800"></div>
+			<span class="text-sm font-semibold tracking-tight text-slate-900">WCFP Explorer</span>
+		</div>
+		<nav class="flex items-center gap-5 text-sm text-slate-600">
+			<span class="text-slate-900">Map</span>
+			<span>Taxonomy</span>
+			<span>About</span>
+		</nav>
+	</header>
+
+	<!-- Split hero: text left, map right -->
+	<main class="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(360px,40%)_1fr]">
+		<section class="flex flex-col justify-between overflow-y-auto border-r border-amber-900/10 bg-amber-50/40 px-8 py-10">
+			<div>
+				<p class="text-[11px] font-semibold tracking-[0.24em] text-amber-800 uppercase">The World Checklist</p>
+				<h1 class="mt-3 text-4xl font-semibold tracking-tight text-slate-900">Food plants of the world</h1>
+				<p class="mt-3 max-w-sm text-sm leading-relaxed text-slate-600">Explore the distribution of every documented edible plant species across TDWG botanical regions. Click a region on the map or search below to dive in.</p>
+
+				<div class="mt-6 grid grid-cols-3 gap-3">
+					<div class="rounded-xl border border-amber-900/10 bg-white p-3 shadow-sm">
+						<div class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Species</div>
+						<div class="mt-1 text-xl font-semibold text-slate-900">26,632</div>
+					</div>
+					<div class="rounded-xl border border-amber-900/10 bg-white p-3 shadow-sm">
+						<div class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Families</div>
+						<div class="mt-1 text-xl font-semibold text-slate-900">438</div>
+					</div>
+					<div class="rounded-xl border border-amber-900/10 bg-white p-3 shadow-sm">
+						<div class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Regions</div>
+						<div class="mt-1 text-xl font-semibold text-slate-900">369</div>
+					</div>
+				</div>
+
+				<div class="mt-6">
+					<label class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Find a region</label>
+					<div class="relative mt-2">
+						<svg class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+						<input type="text" placeholder="e.g. Italy, Brazil, Western Australia…" class="w-full rounded-lg border border-amber-900/15 bg-white py-2.5 pr-3 pl-10 text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400 focus:border-amber-700" />
+					</div>
+				</div>
+
+				<div class="mt-8 border-t border-amber-900/10 pt-5">
+					<p class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Most food-plant-rich</p>
+					<ol class="mt-3 space-y-1.5 text-sm">
+						<li class="flex justify-between"><span class="text-slate-700">China South-Central</span><span class="font-medium text-slate-900">3,592</span></li>
+						<li class="flex justify-between"><span class="text-slate-700">India</span><span class="font-medium text-slate-900">3,201</span></li>
+						<li class="flex justify-between"><span class="text-slate-700">Thailand</span><span class="font-medium text-slate-900">2,844</span></li>
+						<li class="flex justify-between"><span class="text-slate-700">Myanmar</span><span class="font-medium text-slate-900">2,701</span></li>
+					</ol>
+				</div>
+			</div>
+
+			<div class="mt-10 flex flex-wrap items-center gap-4 pt-4 text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
+				<span>Partners</span>
+				<span class="text-slate-400">· NYBG</span>
+				<span class="text-slate-400">· Botaniska</span>
+				<span class="text-slate-400">· Kew</span>
+				<span class="text-slate-400">· Torino</span>
+				<span class="text-slate-400">· Crop Trust</span>
+			</div>
+		</section>
+
+		<section class="relative bg-gradient-to-b from-amber-50/40 to-white">
+			<div class="absolute inset-0 text-amber-700/80">
+				<svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" class="h-full w-full">
+					<g fill="currentColor" stroke="#78350f" stroke-opacity="0.25" stroke-width="0.6" stroke-linejoin="round">
+						<path d="M100 80 L180 70 L240 85 L290 120 L310 180 L280 230 L240 260 L200 270 L150 260 L120 220 L90 160 Z" fill-opacity="0.16" />
+						<path d="M245 290 L285 305 L295 345 L275 400 L235 440 L215 410 L210 360 L225 320 Z" fill-opacity="0.30" />
+						<path d="M430 90 L490 85 L540 95 L575 105 L585 150 L555 180 L500 175 L450 160 L425 130 Z" fill-opacity="0.20" />
+						<path d="M440 190 L510 195 L540 240 L520 320 L470 370 L445 335 L440 260 Z" fill-opacity="0.14" />
+						<path d="M600 80 L730 75 L860 95 L880 160 L830 210 L780 210 L720 180 L640 150 Z" fill-opacity="0.14" />
+						<path d="M720 195 L790 200 L810 245 L820 295 L775 310 L730 290 L705 245 Z" fill-opacity="0.52" />
+						<path d="M810 300 L855 305 L880 340 L870 385 L820 395 L795 355 Z" fill-opacity="0.28" />
+						<path d="M840 390 L900 385 L920 425 L880 455 L835 440 Z" fill-opacity="0.30" />
+					</g>
+				</svg>
+			</div>
+
+			<div class="absolute bottom-5 left-5 rounded-xl border border-amber-900/10 bg-white/95 p-3 shadow-sm backdrop-blur">
+				<div class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Species density</div>
+				<div class="mt-2 h-1.5 w-40 rounded-full" style="background:linear-gradient(to right, #fef3c7, #d97706, #7c2d12)"></div>
+				<div class="mt-1.5 flex justify-between text-[11px] text-slate-500">
+					<span>Sparse</span><span>Typical</span><span>Rich</span>
+				</div>
+			</div>
+		</section>
+	</main>
+</div>
+</body>
+</html>

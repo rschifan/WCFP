@@ -15,3 +15,69 @@ body {
 
 /* Body background is automatically set by Skeleton's @base layer via --body-background-color */
 /* No explicit background needed - Skeleton handles this automatically */
+
+.app-accent-text {
+	color: var(--app-color-accent-text, #991b1b);
+}
+
+.app-accent-text-hover:hover {
+	color: var(--app-color-accent-text-hover, #7f1d1d);
+}
+
+.app-accent-link {
+	color: var(--app-color-accent-text, #991b1b);
+	text-decoration: underline;
+	text-decoration-color: #cbd5e1;
+	text-underline-offset: 4px;
+	transition: color 150ms ease;
+}
+
+.app-accent-link:hover {
+	color: var(--app-color-accent-text-hover, #7f1d1d);
+}
+
+.app-accent-chip-active {
+	border-color: var(--app-color-accent-border, #fca5a5);
+	background-color: var(--app-color-accent-soft, #fee2e2);
+	color: var(--app-color-accent-text, #991b1b);
+}
+
+.app-accent-badge {
+	background-color: var(--app-color-accent-strong);
+	color: #fff;
+}
+
+.app-accent-surface-hover:hover {
+	background-color: var(--app-color-accent-soft);
+}
+
+.app-accent-surface-active {
+	background-color: var(--app-color-accent-border);
+}
+
+.app-accent-icon-button {
+	color: var(--app-color-accent-text, #991b1b);
+	transition:
+		color 150ms ease,
+		background-color 150ms ease;
+}
+
+.app-accent-icon-button:hover {
+	background-color: #f8fafc;
+	color: var(--app-color-accent-text-hover, #7f1d1d);
+}
+
+.app-input-accent:focus {
+	border-color: var(--app-color-accent-border);
+	background-color: #fff;
+	box-shadow: 0 0 0 2px var(--app-color-accent-soft);
+	outline: none;
+}
+
+.app-spinner-accent {
+	border-top-color: var(--app-color-accent-strong);
+}
+
+.app-spinner-ping {
+	border-color: var(--app-color-accent-strong);
+}

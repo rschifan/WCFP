@@ -1,657 +1,609 @@
 <script lang="ts">
-	/**
-	 * ChoroplethMap - Presentational component for displaying spatial distribution
-	 *
-	 * This component displays a choropleth map with distribution data.
-	 * It enriches GeoJSON features with count data and handles map visualization.
-	 *
-	 * Features:
-	 * - SSR-safe initialization
-	 * - Reactive updates when distribution data changes
-	 * - Hover tooltips
-	 * - Click handling for region selection
-	 * - Color scale based on data range
-	 */
-
-	import type { Map as MapLibreMapType, GeoJSONSource } from 'maplibre-gl';
-	import type { FeatureCollection } from 'geojson';
-	import MapComponent from '../Map.svelte';
+	import type { FeatureCollection, GeoJsonProperties, Feature } from 'geojson';
+	import { geoNaturalEarth1, geoPath } from 'd3-geo';
+	import { zoom as d3zoom, zoomIdentity, zoomTransform } from 'd3-zoom';
+	import { select } from 'd3-selection';
 	import Legend from '../Legend.svelte';
+	import { APP_MAP_PALETTE, type MapPalette } from '$lib/constants/palette';
+	import {
+		classColors,
+		classFillColor,
+		computeFillColor,
+		computeQuantileBreaks,
+		computeRange,
+		type ValueRange
+	} from '$lib/map/color-scale';
+
+	// ---------------------------------------------------------------------------
+	// Types
+	// ---------------------------------------------------------------------------
+
+	interface TooltipState {
+		x: number;
+		y: number;
+		name: string;
+		count: number | null;
+		hasData: boolean;
+	}
+
+	interface ProjectedFeature {
+		code: string | null;
+		name: string;
+		count: number | null;
+		hasData: boolean;
+		d: string;
+		centroid: [number, number];
+	}
+
+	interface MapFeatureProperties extends Record<string, unknown> {
+		LEVEL3_COD?: string;
+		LEVEL3_NAM?: string;
+		area?: string;
+		unique_count?: number | null;
+		has_data?: boolean;
+	}
+
+	interface EnrichedResult {
+		geoJSON: FeatureCollection;
+		range: ValueRange;
+		/** Every value that counts as data, for classifications that need the distribution. */
+		values: number[];
+		missingCodes: string[];
+	}
 
 	interface Props {
-		/** GeoJSON feature collection with region data */
 		geoJSON: FeatureCollection;
-		/** Distribution data: Map of region names to species counts */
+		/** Replace the Map reference (don't mutate in-place) to trigger reactivity. */
 		distributionData: Map<string, number>;
-		/** Currently selected region name */
 		selectedRegion?: string | null;
-		/** Optional callback when map is loaded */
-		onMapLoad?: (map: MapLibreMapType) => void;
-		/** Optional callback when a region is clicked */
-		onRegionClick?: (regionName: string) => void;
-		/** Color scale configuration */
-		colors?: {
-			low: string;
-			mid: string;
-			high: string;
-		};
-		/** Hover color for highlighted regions */
+		/** External hover preview — renders a hover border without pointer interaction. */
+		previewRegion?: string | null;
+		onRegionClick?: (regionCode: string) => void;
+		/** Choropleth gradient colors — overrides palette.low/mid/high. */
+		colors?: { low: string; mid: string; high: string };
+		palette?: MapPalette;
+		/** Hover border color — overrides palette.hover. */
 		hoverColor?: string;
-		/** Selected region border color */
+		/** Selected region border color — overrides palette.selected. */
 		selectedColor?: string;
-		/** Tooltip offset in pixels */
+		/** Selected region fill overlay color — overrides palette.selectedFill. */
+		selectedFillColor?: string;
+		/** Opacity of the selected region fill overlay (0–1, default 0.3). */
+		selectedFillOpacity?: number;
+		/** Stroke width of the selected region border in SVG user-units (default 3). */
+		selectedStrokeWidth?: number;
 		tooltipOffset?: number;
-		/** Show legend (default: true) */
 		showLegend?: boolean;
-		/** Legend title (default: 'Count') */
+		/** Noun for the measured value, used in the tooltip and aria labels. */
+		valueLabel?: string;
+		/** Formats the value for tooltip and legend ticks — percentages are not integers. */
+		formatValue?: (value: number) => string;
+		/** True when zero is a real reading rather than an absence (ratios, not counts). */
+		zeroIsData?: boolean;
+		/**
+		 * `continuous` stretches the ramp linearly between the extremes. `quantile` splits the
+		 * areas into equal-count classes instead — the standard choice for a skewed distribution,
+		 * where a linear ramp would spend its dark end on a handful of outliers.
+		 */
+		classification?: 'continuous' | 'quantile';
+		/** Number of classes when `classification` is `quantile`. */
+		classCount?: number;
 		legendTitle?: string;
-		/** Legend subtitle */
 		legendSubtitle?: string;
-		/** Auto-fit bounds to show all geographies (default: true) */
+		legendPosition?: 'top' | 'bottom' | 'bottom-left';
 		autoFitBounds?: boolean;
 	}
+
+	// ---------------------------------------------------------------------------
+	// Constants
+	// ---------------------------------------------------------------------------
+
+	const PADDING = 20;
+	const LABEL_ZOOM_THRESHOLD = 4;
+
+	// ---------------------------------------------------------------------------
+	// Pure utility functions
+	// ---------------------------------------------------------------------------
+
+	function toProps(raw?: GeoJsonProperties | null): MapFeatureProperties {
+		return (raw && typeof raw === 'object' ? raw : {}) as MapFeatureProperties;
+	}
+
+	function getRegionName(raw?: GeoJsonProperties | null): string {
+		const p = toProps(raw);
+		if (typeof p.LEVEL3_NAM === 'string' && p.LEVEL3_NAM) return p.LEVEL3_NAM;
+		if (typeof p.area === 'string' && p.area) return p.area;
+		return 'Unknown';
+	}
+
+	function getRegionCode(raw?: GeoJsonProperties | null): string | null {
+		const p = toProps(raw);
+		return typeof p.LEVEL3_COD === 'string' && p.LEVEL3_COD ? p.LEVEL3_COD : null;
+	}
+
+	// ---------------------------------------------------------------------------
+	// Props
+	// ---------------------------------------------------------------------------
 
 	let {
 		geoJSON,
 		distributionData,
 		selectedRegion = null,
-		onMapLoad,
+		previewRegion = null,
 		onRegionClick,
-		colors = { low: '#e0f2f1', mid: '#80cbc4', high: '#00897b' },
-		hoverColor = '#14532d',
-		selectedColor = '#0ea5e9',
+		colors,
+		palette = APP_MAP_PALETTE,
+		hoverColor,
+		selectedColor,
+		selectedFillColor,
+		selectedFillOpacity = 0.3,
+		selectedStrokeWidth = 3,
 		tooltipOffset = 10,
 		showLegend = true,
 		legendTitle = 'Count',
 		legendSubtitle,
-		autoFitBounds = true
+		legendPosition = 'bottom',
+		autoFitBounds = true,
+		valueLabel = 'Count',
+		formatValue = (v: number) => v.toLocaleString(),
+		zeroIsData = false,
+		classification = 'continuous',
+		classCount = 5
 	}: Props = $props();
 
+	// ---------------------------------------------------------------------------
 	// State
-	let mapInstance = $state<MapLibreMapType | null>(null);
-	let tooltip = $state<{ x: number; y: number; name: string; count: number } | null>(null);
-	let hoveredFeatureId = $state<string | number | null>(null);
-	let currentCursor = $state<string>('default');
-	let pendingCursorUpdate: string | null = null;
-	let rafId: number | null = null;
-	let boundsFitted = $state(false);
-	let isGlobeMode = $state(false);
+	// ---------------------------------------------------------------------------
 
-	// Non-reactive variable for tracking selected feature (to avoid infinite loops in effects)
-	let currentSelectedFeatureId: string | number | null = null;
+	let containerEl = $state<HTMLDivElement | null>(null);
+	let svgEl = $state<SVGSVGElement | null>(null);
+	// innerG: d3 sets its `transform` attribute directly — never goes through Svelte
+	// Both managed directly by d3 — never go through Svelte's reactive system
+	let innerG: SVGGElement | null = null;
+	let labelsG: SVGGElement | null = null;
+	let width = $state(800);
+	let height = $state(500);
+	let hoveredCode = $state<string | null>(null);
+	const effectiveHovered = $derived(previewRegion ?? hoveredCode);
+	let tooltip = $state<TooltipState | null>(null);
+	// Hidden until the first auto-fit completes so we never show the default 800×500 flash
+	let mapReady = $state(false);
 
-	// Derived: Enriched GeoJSON with count data (excluding features with empty data)
-	const enrichedGeoJSON = $derived.by(() => {
-		if (!geoJSON) {
-			return null;
-		}
+	// ---------------------------------------------------------------------------
+	// Derived colours
+	// ---------------------------------------------------------------------------
 
-		// Force reactivity by reading distributionData.size and iterating
-		const dataSize = distributionData.size;
-		const hasDistributionData = dataSize > 0;
+	const effectiveColors = $derived(
+		colors ?? { low: palette.low, mid: palette.mid, high: palette.high }
+	);
+	const effectiveHoverColor = $derived(hoverColor ?? palette.hover);
+	const effectiveSelectedColor = $derived(selectedColor ?? palette.selected);
+	const effectiveSelectedFill = $derived(selectedFillColor ?? palette.selectedFill);
 
-		// If distributionData is provided and not empty, use it to enrich
-		// Otherwise, use the original GeoJSON (which may already have unique_count)
-		if (hasDistributionData) {
-			// Create a copy of the GeoJSON and enrich features with count data
-			// Filter out features with empty data (count = 0)
-			const enriched: FeatureCollection = {
-				type: 'FeatureCollection' as const,
-				features: geoJSON.features
-					.map((feature) => {
-						const regionName =
-							feature.properties?.LEVEL3_NAM || feature.properties?.area || 'Unknown';
-						const count = distributionData.get(regionName) || 0;
+	// ---------------------------------------------------------------------------
+	// Single-pass enrichment
+	// ---------------------------------------------------------------------------
 
-						return {
-							...feature,
-							properties: {
-								...feature.properties,
-								unique_count: count,
-								LEVEL3_NAM: regionName
-							}
-						};
-					})
-					.filter((feature) => {
-						// Only include features with data (count > 0)
-						const count = feature.properties?.unique_count || 0;
-						return count > 0;
-					})
-			};
-
-			return enriched;
-		}
-
-		// Use original GeoJSON, but filter out features with no data
-		// (it already has unique_count from the data file)
-		const filtered: FeatureCollection = {
-			type: 'FeatureCollection' as const,
-			features: geoJSON.features.filter((feature) => {
-				const count = feature.properties?.unique_count || 0;
-				return count > 0;
-			})
+	const enriched = $derived.by((): EnrichedResult => {
+		const EMPTY: EnrichedResult = {
+			geoJSON: { type: 'FeatureCollection', features: [] },
+			range: { min: 0, max: 0, mid: 0 },
+			values: [],
+			missingCodes: []
 		};
-		return filtered;
-	});
 
-	// Derived: Calculate min/max counts for color scale
-	// Only considers features with data since empty features are filtered out
-	const countRange = $derived.by(() => {
-		if (!enrichedGeoJSON) {
-			return { min: 0, max: 0, mid: 0 };
-		}
+		if (!geoJSON) return EMPTY;
 
-		// Extract counts from GeoJSON features (only features with data are included)
+		const hasDistribution = distributionData.size > 0;
+		const knownCodes = new Set<string>();
 		const counts: number[] = [];
-		for (const feature of enrichedGeoJSON.features) {
-			const count = feature.properties?.unique_count;
-			if (typeof count === 'number') {
-				counts.push(count);
+
+		const features = geoJSON.features.map((feature) => {
+			const p = toProps(feature.properties);
+			const regionName = getRegionName(p);
+			const regionCode = getRegionCode(p);
+
+			if (regionCode) knownCodes.add(regionCode);
+
+			let rawCount: number | undefined;
+			if (hasDistribution) {
+				rawCount = regionCode ? distributionData.get(regionCode) : undefined;
+			} else {
+				const preCount = p.unique_count;
+				const usable =
+					typeof preCount === 'number' && (zeroIsData ? preCount >= 0 : preCount > 0);
+				rawCount = usable ? (preCount as number) : undefined;
 			}
-		}
+			const hasData =
+				typeof rawCount === 'number' && (zeroIsData ? rawCount >= 0 : rawCount > 0);
+			if (hasData) counts.push(rawCount as number);
 
-		if (counts.length === 0) {
-			return { min: 0, max: 0, mid: 0 };
-		}
+			return {
+				...feature,
+				properties: {
+					...p,
+					unique_count: hasData ? rawCount : null,
+					has_data: hasData,
+					LEVEL3_NAM: regionName
+				}
+			};
+		});
 
-		const min = Math.min(...counts);
-		const max = Math.max(...counts);
-		const mid = Math.round((min + max) / 2);
+		const missingCodes = hasDistribution
+			? [...distributionData.keys()].filter((c) => !knownCodes.has(c))
+			: [];
 
-		return { min, max, mid };
+		const range = computeRange(counts, zeroIsData);
+		const values = counts.slice();
+
+		return { geoJSON: { type: 'FeatureCollection', features }, range, values, missingCodes };
 	});
 
-	// Track if layers are set up
-	let layersSetup = $state(false);
+	const countRange = $derived(enriched.range);
 
-	// Handle map load - store reference
-	function handleMapLoad(map: MapLibreMapType) {
-		mapInstance = map;
+	// Quantile classification, computed once per data change rather than per polygon.
+	const classBreaks = $derived(
+		classification === 'quantile' ? computeQuantileBreaks(enriched.values, classCount, zeroIsData) : []
+	);
+	const classPalette = $derived(
+		classification === 'quantile' ? classColors(effectiveColors, classCount) : []
+	);
 
-		if (onMapLoad) {
-			onMapLoad(map);
+	// ---------------------------------------------------------------------------
+	// Warning for unmatched distribution codes
+	// ---------------------------------------------------------------------------
+
+	let _lastMissingSignature = '';
+	$effect(() => {
+		const sig = enriched.missingCodes.slice().sort().join(',');
+		if (sig && sig !== _lastMissingSignature) {
+			console.warn(
+				'[ChoroplethMap] Distribution codes missing from GeoJSON:',
+				enriched.missingCodes
+			);
+		}
+		_lastMissingSignature = sig;
+	});
+
+	// ---------------------------------------------------------------------------
+	// Projection + projected features (recomputed on resize or data change)
+	// ---------------------------------------------------------------------------
+
+	const computed = $derived.by(() => {
+		const fc = enriched.geoJSON;
+		const w = Math.max(width, PADDING * 2 + 1);
+		const h = Math.max(height, PADDING * 2 + 1);
+
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		const fitTarget: any = fc.features.length > 0 ? fc : { type: 'Sphere' };
+		const proj = geoNaturalEarth1().fitExtent(
+			[
+				[PADDING, PADDING],
+				[w - PADDING, h - PADDING]
+			],
+			fitTarget
+		);
+		const pg = geoPath(proj);
+
+		const features: ProjectedFeature[] = fc.features.map((f: Feature) => {
+			const props = f.properties ?? {};
+			const code = getRegionCode(props);
+			const name = getRegionName(props);
+			const rawCount = props.unique_count;
+			const count = typeof rawCount === 'number' ? rawCount : null;
+			const hasData = Boolean(props.has_data);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const centroid = pg.centroid(f as any) as [number, number];
+			return {
+				code,
+				name,
+				count: hasData ? count : null,
+				hasData,
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				d: pg(f as any) ?? '',
+				centroid
+			};
+		});
+
+		return { features, pg };
+	});
+
+	const projectedFeatures = $derived(computed.features);
+
+	// ---------------------------------------------------------------------------
+	// d3-zoom setup
+	// ---------------------------------------------------------------------------
+
+	// At k=1 the Natural Earth projection already fills the viewport — never zoom below that.
+	// Both DOM mutations go directly to the element — zero Svelte reactivity in the hot path.
+	// translateExtent([[0,0],[w,h]]) locks the content to the viewport: at k=1 panning is
+	// impossible; at k>1 the user can pan exactly as far as the map overflows the viewport.
+	// No custom constrain — the standard d3 algorithm handles both constraints cleanly.
+	const zoomBehavior = d3zoom<SVGSVGElement, unknown>()
+		.scaleExtent([1, 20])
+		.on('zoom', (event) => {
+			if (innerG) innerG.setAttribute('transform', event.transform.toString());
+			if (labelsG) labelsG.style.opacity = event.transform.k >= LABEL_ZOOM_THRESHOLD ? '1' : '0';
+		});
+
+	$effect(() => {
+		if (!svgEl) return;
+		const svgSel = select(svgEl);
+		svgSel.call(zoomBehavior);
+
+		// d3's default wheel handler centers the zoom on the cursor, which makes the map
+		// drift sideways while zooming and then snap when k hits 1. Replace it with a handler
+		// that always zooms toward the viewport center — zoom-out then tracks cleanly to
+		// identity with no lateral movement and no snap.
+		function onWheel(event: WheelEvent) {
+			event.preventDefault();
+			const t = zoomTransform(svgEl!);
+			// Same delta formula as d3-zoom internally (supports pixels / lines / pages mode).
+			const delta =
+				-event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
+			const k1 = Math.max(1, Math.min(20, t.k * Math.pow(2, delta)));
+			if (k1 === t.k) return; // already at a scale extent boundary
+			const ratio = k1 / t.k;
+			const cx = width / 2;
+			const cy = height / 2;
+			// Scale centered on viewport center (not cursor position)
+			let x1 = cx + (t.x - cx) * ratio;
+			let y1 = cy + (t.y - cy) * ratio;
+			// Clamp so no blank space outside content bounds
+			x1 = Math.min(0, Math.max(x1, width * (1 - k1)));
+			y1 = Math.min(0, Math.max(y1, height * (1 - k1)));
+			svgSel.call(zoomBehavior.transform, zoomIdentity.translate(x1, y1).scale(k1));
 		}
 
-		// Try to set up layers if data is ready
-		setupMapLayers();
-	}
+		// Remove d3's wheel.zoom listener and use ours instead.
+		// Native addEventListener is required so { passive: false } can call preventDefault.
+		svgSel.on('wheel.zoom', null);
+		svgEl.addEventListener('wheel', onWheel, { passive: false });
 
-	/**
-	 * Calculate bounding box from GeoJSON features and fit map to show all geographies.
-	 * Only includes features with data (unique_count > 0) to fit bounds to actual distribution.
-	 */
-	function fitMapToBounds() {
-		if (!mapInstance || !enrichedGeoJSON) return;
+		return () => {
+			svgEl?.removeEventListener('wheel', onWheel);
+			svgSel.on('.zoom', null);
+		};
+	});
 
-		try {
-			// Calculate bounding box from features with data only
-			let minLng = Infinity;
-			let minLat = Infinity;
-			let maxLng = -Infinity;
-			let maxLat = -Infinity;
+	// Keep pan bounds in sync with the viewport.
+	// At k=1 (world fills viewport) translateExtent === viewport → translate is clamped to (0,0)
+	// and panning is impossible. At k>1 the map overflows the viewport and panning is allowed.
+	$effect(() => {
+		zoomBehavior
+			.extent([
+				[0, 0],
+				[width, height]
+			])
+			.translateExtent([
+				[0, 0],
+				[width, height]
+			]);
+	});
 
-			// Helper to process coordinates recursively
-			function processCoordinates(coords: any[]): void {
-				for (const coord of coords) {
-					if (Array.isArray(coord)) {
-						if (typeof coord[0] === 'number' && typeof coord[1] === 'number') {
-							// This is a coordinate [lng, lat]
-							const [lng, lat] = coord;
-							minLng = Math.min(minLng, lng);
-							minLat = Math.min(minLat, lat);
-							maxLng = Math.max(maxLng, lng);
-							maxLat = Math.max(maxLat, lat);
-						} else {
-							// Nested array, recurse
-							processCoordinates(coord);
-						}
-					}
-				}
-			}
+	// ---------------------------------------------------------------------------
+	// Auto-fit / focus to bounds of regions
+	// ---------------------------------------------------------------------------
 
-			// Process all features (empty features are already filtered out in enrichedGeoJSON)
-			for (const feature of enrichedGeoJSON.features) {
-				if (feature.geometry && feature.geometry.coordinates) {
-					processCoordinates(feature.geometry.coordinates);
-				}
-			}
-
-			// Only fit bounds if we have valid coordinates
-			if (
-				isFinite(minLng) &&
-				isFinite(minLat) &&
-				isFinite(maxLng) &&
-				isFinite(maxLat) &&
-				minLng !== maxLng &&
-				minLat !== maxLat
-			) {
-				// Reset bounds fitted state before fitting
-				boundsFitted = false;
-
-				if (import.meta.env.DEV) {
-					console.log('[ChoroplethMap] Fitting bounds to features with data:', {
-						bounds: [[minLng, minLat], [maxLng, maxLat]],
-						featureCount: enrichedGeoJSON.features.length
-					});
-				}
-
-				mapInstance.fitBounds(
-					[
-						[minLng, minLat],
-						[maxLng, maxLat]
-					],
-					{
-						padding: 100, // Add larger padding around the bounds
-						duration: 0, // Immediate - no animation
-						maxZoom: 10 // Don't zoom in too much
-					}
-				);
-
-				// Mark bounds as fitted after operation completes
-				// Use requestAnimationFrame to ensure it happens after the fitBounds operation
-				requestAnimationFrame(() => {
-					boundsFitted = true;
-				});
-			} else {
-				// If no valid bounds (no features with data), show map at default view
-				if (import.meta.env.DEV) {
-					console.warn('[ChoroplethMap] No features with data found, using default view');
-				}
-				boundsFitted = true;
-			}
-		} catch (err) {
-			console.warn('[ChoroplethMap] Error fitting bounds:', err);
-			// Ensure map is visible even if bounds fitting fails
-			boundsFitted = true;
+	/** Fit the viewport to the union of the given features' bounds. */
+	function fitToFeatures(features: FeatureCollection['features'], padding = 0.9): boolean {
+		if (!svgEl || features.length === 0) return false;
+		const { pg } = computed;
+		let x0 = Infinity,
+			y0 = Infinity,
+			x1 = -Infinity,
+			y1 = -Infinity;
+		for (const f of features) {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const b = pg.bounds(f as any);
+			if (!isFinite(b[0][0])) continue;
+			x0 = Math.min(x0, b[0][0]);
+			y0 = Math.min(y0, b[0][1]);
+			x1 = Math.max(x1, b[1][0]);
+			y1 = Math.max(y1, b[1][1]);
 		}
+		if (!isFinite(x0) || x1 <= x0 || y1 <= y0 || width <= 0 || height <= 0) return false;
+		const scale = Math.max(
+			1,
+			Math.min(20, padding * Math.min(width / (x1 - x0), height / (y1 - y0)))
+		);
+		const tx = (width - scale * (x0 + x1)) / 2;
+		const ty = (height - scale * (y0 + y1)) / 2;
+		select(svgEl).call(zoomBehavior.transform, zoomIdentity.translate(tx, ty).scale(scale));
+		if (labelsG) labelsG.style.opacity = scale >= LABEL_ZOOM_THRESHOLD ? '1' : '0';
+		return true;
 	}
 
-	// Set up map layers (called when map is ready AND data is available)
-	function setupMapLayers() {
-		if (!mapInstance || !enrichedGeoJSON || layersSetup) return;
-
-		// Ensure map style is loaded before adding layers
-		if (!mapInstance.isStyleLoaded()) {
-			mapInstance.once('styledata', () => {
-				setupMapLayers();
-			});
+	$effect(() => {
+		if (!svgEl || !autoFitBounds) return;
+		// Fit to the whole geography, not to whichever features currently carry data. A filter
+		// changes only the colouring, so refitting on the data-bearing subset made the map jump
+		// a few pixels whenever the filtered set covered a different bounding box — switching to
+		// "introduced" drops two areas, which was enough to shift the whole projection.
+		const features = geoJSON.features;
+		if (features.length === 0) {
+			select(svgEl).call(zoomBehavior.transform, zoomIdentity);
+			mapReady = true;
 			return;
 		}
-
-		const { min, max, mid } = countRange;
-
-		// Remove existing source and layers if they exist
-		if (mapInstance.getSource('level3')) {
-			if (mapInstance.getLayer('level3-fill')) {
-				mapInstance.removeLayer('level3-fill');
-			}
-			if (mapInstance.getLayer('level3-stroke')) {
-				mapInstance.removeLayer('level3-stroke');
-			}
-			if (mapInstance.getLayer('level3-hover')) {
-				mapInstance.removeLayer('level3-hover');
-			}
-			if (mapInstance.getLayer('level3-selected')) {
-				mapInstance.removeLayer('level3-selected');
-			}
-			if (mapInstance.getLayer('level3-selected-fill')) {
-				mapInstance.removeLayer('level3-selected-fill');
-			}
-			mapInstance.removeSource('level3');
-		}
-
-		// Add source with generateId for feature state support
-		mapInstance.addSource('level3', {
-			type: 'geojson',
-			data: enrichedGeoJSON,
-			generateId: true
-		});
-
-		// Build fill-color expression
-		// MapLibre requires strictly increasing stop values, so we handle edge cases:
-		// 1. min === max: use a single color
-		// 2. max - min < 2: use two-stop interpolation (min and max only)
-		// 3. Otherwise: use three-stop interpolation (min, mid, max)
-		// Note: Features with empty data are filtered out, so we don't need to handle them here
-		const fillColorExpression: any =
-			min === max
-				? colors.mid // All regions have the same count
-				: max - min < 2 || mid === min || mid === max
-					? // Range is too small for three stops, use two-stop interpolation
-						[
-							'interpolate',
-							['linear'],
-							['coalesce', ['get', 'unique_count'], 0],
-							min,
-							colors.low,
-							max,
-							colors.high
-						]
-					: // Normal case: three-stop interpolation
-						[
-							'interpolate',
-							['linear'],
-							['coalesce', ['get', 'unique_count'], 0],
-							min,
-							colors.low,
-							mid,
-							colors.mid,
-							max,
-							colors.high
-						];
-
-		// Add fill layer with color scale
-		mapInstance.addLayer({
-			id: 'level3-fill',
-			type: 'fill',
-			source: 'level3',
-			paint: {
-				'fill-color': fillColorExpression,
-				'fill-opacity': 0.7
-			}
-		});
-
-		// Add stroke layer
-		mapInstance.addLayer({
-			id: 'level3-stroke',
-			type: 'line',
-			source: 'level3',
-			paint: {
-				'line-color': '#000000',
-				'line-width': 0.5,
-				'line-opacity': 0.3
-			}
-		});
-
-		// Add hover highlight layer (all features have data since empty ones are filtered out)
-		mapInstance.addLayer({
-			id: 'level3-hover',
-			type: 'line',
-			source: 'level3',
-			paint: {
-				'line-color': hoverColor,
-				'line-width': 3,
-				'line-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 1, 0]
-			}
-		});
-
-		// Add selected region fill overlay (subtle highlight)
-		mapInstance.addLayer({
-			id: 'level3-selected-fill',
-			type: 'fill',
-			source: 'level3',
-			paint: {
-				'fill-color': selectedColor,
-				'fill-opacity': [
-					'case',
-					['boolean', ['feature-state', 'selected'], false],
-					0.25,
-					0
-				]
-			}
-		});
-
-		// Add selected region border (thick, clear border)
-		mapInstance.addLayer({
-			id: 'level3-selected',
-			type: 'line',
-			source: 'level3',
-			paint: {
-				'line-color': selectedColor,
-				'line-width': 4,
-				'line-opacity': [
-					'case',
-					['boolean', ['feature-state', 'selected'], false],
-					1,
-					0
-				]
-			}
-		});
-
-		// Set up event handlers (only once)
-		setupEventHandlers();
-		layersSetup = true;
-
-		// Reset bounds fitted state before fitting
-		boundsFitted = false;
-
-		// Fit map to show all geographies immediately after layers are set up (if enabled)
-		if (autoFitBounds) {
-			fitMapToBounds();
-		} else {
-			// Show map immediately if auto-fit is disabled
-			boundsFitted = true;
-		}
-	}
-
-	// Update map data when enriched GeoJSON changes (after initial setup)
-	function updateMapData() {
-		if (!mapInstance || !enrichedGeoJSON || !layersSetup) return;
-
-		const source = mapInstance.getSource('level3');
-		if (source && source.type === 'geojson') {
-			// Reset bounds fitted state before updating
-			boundsFitted = false;
-
-			// Update the source data
-			(source as GeoJSONSource).setData(enrichedGeoJSON);
-
-			// Fit map to show all geographies immediately when data updates (if enabled)
-			if (autoFitBounds) {
-				fitMapToBounds();
-			} else {
-				boundsFitted = true;
-			}
-		}
-	}
-
-	// Schedule cursor update using requestAnimationFrame to prevent flickering
-	function scheduleCursorUpdate() {
-		if (rafId !== null) return; // Already scheduled
-		
-		rafId = requestAnimationFrame(() => {
-			if (!mapInstance || pendingCursorUpdate === null) {
-				rafId = null;
-				return;
-			}
-			
-			const newCursor = pendingCursorUpdate;
-			pendingCursorUpdate = null;
-			rafId = null;
-			
-			if (currentCursor !== newCursor) {
-				currentCursor = newCursor;
-				const canvas = mapInstance.getCanvas();
-				const container = mapInstance.getContainer();
-				
-				// Apply cursor to canvas (the actual interactive element)
-				if (canvas) {
-					canvas.style.cursor = newCursor;
-					canvas.style.setProperty('cursor', newCursor, 'important');
-				}
-				
-				// Also set on container
-				if (container) {
-					container.style.cursor = newCursor;
-					container.style.setProperty('cursor', newCursor, 'important');
-				}
-				
-				// Also set on the canvas container div (maplibregl-canvas-container)
-				const canvasContainer = canvas?.parentElement;
-				if (canvasContainer && canvasContainer.classList.contains('maplibregl-canvas-container')) {
-					canvasContainer.style.cursor = newCursor;
-					canvasContainer.style.setProperty('cursor', newCursor, 'important');
-				}
-				
-				if (import.meta.env.DEV) {
-					console.log('[ChoroplethMap] Cursor updated to:', newCursor, {
-						canvas: !!canvas,
-						container: !!container,
-						canvasContainer: !!canvasContainer,
-						canvasComputedStyle: canvas ? window.getComputedStyle(canvas).cursor : null,
-						containerComputedStyle: container ? window.getComputedStyle(container).cursor : null
-					});
-				}
-			}
-		});
-	}
-
-	// Set up map event handlers
-	function setupEventHandlers() {
-		if (!mapInstance) return;
-
-		// Remove existing handlers to avoid duplicates
-		// @ts-expect-error - MapLibre types don't fully support layer-filtered events in TypeScript
-		mapInstance.off('mousemove', 'level3-fill');
-		// @ts-expect-error - MapLibre types don't fully support layer-filtered events in TypeScript
-		mapInstance.off('mouseleave', 'level3-fill');
-		// @ts-expect-error - MapLibre types don't fully support layer-filtered events in TypeScript
-		mapInstance.off('click', 'level3-fill');
-
-		// Add hover effects (all features have data since empty ones are filtered out)
-		mapInstance.on('mousemove', 'level3-fill', (e: any) => {
-			if (!mapInstance) return;
-
-			if (e.features?.[0]) {
-				const feature = e.features[0];
-				const count = feature.properties?.unique_count || 0;
-
-				// All features have data (empty ones are filtered out), so always use pointer cursor
-				const desiredCursor = 'pointer';
-				
-				// Always schedule cursor update (the function will check if it changed)
-				if (currentCursor !== desiredCursor || pendingCursorUpdate !== desiredCursor) {
-					pendingCursorUpdate = desiredCursor;
-					scheduleCursorUpdate();
-					
-					if (import.meta.env.DEV) {
-						console.log('[ChoroplethMap] Scheduling cursor update:', {
-							current: currentCursor,
-							desired: desiredCursor
-						});
-					}
-				}
-				const newFeatureId = feature.id;
-
-				// Update hover state if feature changed
-				if (hoveredFeatureId !== newFeatureId) {
-					if (hoveredFeatureId !== null) {
-						mapInstance.setFeatureState(
-							{ source: 'level3', id: hoveredFeatureId },
-							{ hover: false }
-						);
-					}
-					if (newFeatureId !== undefined) {
-						mapInstance.setFeatureState({ source: 'level3', id: newFeatureId }, { hover: true });
-						hoveredFeatureId = newFeatureId;
-					}
-				}
-
-				// Update tooltip
-				const regionName = feature.properties?.LEVEL3_NAM || 'Unknown';
-				tooltip = {
-					x: e.point.x,
-					y: e.point.y,
-					name: regionName,
-					count
-				};
-			}
-		});
-
-		// Reset cursor when leaving polygons
-		mapInstance.on('mouseleave', 'level3-fill', () => {
-			if (!mapInstance) return;
-			// Schedule cursor update if it changed
-			if (currentCursor !== 'default') {
-				pendingCursorUpdate = 'default';
-				scheduleCursorUpdate();
-			}
-			tooltip = null;
-
-			if (hoveredFeatureId !== null) {
-				mapInstance.setFeatureState({ source: 'level3', id: hoveredFeatureId }, { hover: false });
-				hoveredFeatureId = null;
-			}
-		});
-
-		// Handle click to trigger region selection (all features have data since empty ones are filtered out)
-		mapInstance.on('click', 'level3-fill', (e: any) => {
-			if (e.features?.[0] && onRegionClick) {
-				// Use 'area' for data loading (matches JSON file names), fall back to LEVEL3_NAM
-				const regionName =
-					e.features[0].properties?.area || e.features[0].properties?.LEVEL3_NAM;
-				if (regionName) {
-					onRegionClick(regionName);
-				}
-			}
-		});
-	}
-
-	// Set up layers when map is ready and enriched GeoJSON is available
-	$effect(() => {
-		if (mapInstance && enrichedGeoJSON && !layersSetup) {
-			setupMapLayers();
-		} else if (layersSetup && enrichedGeoJSON) {
-			// Update data if layers are already set up
-			updateMapData();
-		}
+		fitToFeatures(features);
+		mapReady = true;
 	});
 
-	// Update selected region highlight when selectedRegion changes
+
+	// ---------------------------------------------------------------------------
+	// ResizeObserver
+	// ---------------------------------------------------------------------------
+
 	$effect(() => {
-		if (!mapInstance || !layersSetup || !enrichedGeoJSON) return;
+		if (!containerEl) return;
 
-		// Read selectedRegion to establish dependency
-		const region = selectedRegion;
+		// Read initial size synchronously so first render uses correct dimensions
+		const rect = containerEl.getBoundingClientRect();
+		if (rect.width > 0) width = rect.width;
+		if (rect.height > 0) height = rect.height;
 
-		// Clear previous selection
-		if (currentSelectedFeatureId !== null) {
-			try {
-				mapInstance.setFeatureState(
-					{ source: 'level3', id: currentSelectedFeatureId },
-					{ selected: false }
-				);
-			} catch {
-				// Ignore errors if feature doesn't exist
-			}
-			currentSelectedFeatureId = null;
-		}
-
-		// Set new selection if there's a selected region
-		if (region) {
-			// Find the feature ID for the selected region
-			const features = mapInstance.querySourceFeatures('level3');
-			for (const feature of features) {
-				const regionName = feature.properties?.area || feature.properties?.LEVEL3_NAM;
-				if (regionName === region && feature.id !== undefined) {
-					mapInstance.setFeatureState(
-						{ source: 'level3', id: feature.id },
-						{ selected: true }
-					);
-					currentSelectedFeatureId = feature.id;
-					break;
-				}
-			}
-		}
+		const ro = new ResizeObserver((entries) => {
+			const r = entries[0].contentRect;
+			if (r.width > 0) width = r.width;
+			if (r.height > 0) height = r.height;
+		});
+		ro.observe(containerEl);
+		return () => ro.disconnect();
 	});
+
+	// ---------------------------------------------------------------------------
+	// Tooltip
+	// ---------------------------------------------------------------------------
+
+	function showTooltip(event: MouseEvent, feature: ProjectedFeature) {
+		if (!containerEl) return;
+		const rect = containerEl.getBoundingClientRect();
+		tooltip = {
+			x: event.clientX - rect.left,
+			y: event.clientY - rect.top,
+			name: feature.name,
+			count: feature.count,
+			hasData: feature.hasData
+		};
+	}
+
+	function hideTooltip() {
+		tooltip = null;
+	}
+
+	// ---------------------------------------------------------------------------
+	// Click
+	// ---------------------------------------------------------------------------
+
+	function handleClick(feature: ProjectedFeature) {
+		if (!feature.hasData || !onRegionClick || !feature.code) return;
+		onRegionClick(feature.code);
+	}
 </script>
 
-<div class="relative h-full w-full">
-	<div
-		class="h-full w-full transition-opacity duration-500 {boundsFitted
-			? 'opacity-100'
-			: 'opacity-0'}"
+<div
+	class="relative h-full w-full overflow-hidden transition-opacity duration-300 {mapReady
+		? 'opacity-100'
+		: 'opacity-0'}"
+	bind:this={containerEl}
+>
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<svg
+		bind:this={svgEl}
+		{width}
+		{height}
+		role="img"
+		aria-label="Choropleth map of botanical regions"
+		class="block"
+		onmouseleave={hideTooltip}
 	>
-		<div class="h-full w-full {isGlobeMode ? 'p-4' : ''}">
-			<MapComponent
-				initialViewState={{ longitude: 0, latitude: 20, zoom: 2 }}
-				onMapLoad={handleMapLoad}
-				onGlobeModeChange={(isGlobe) => (isGlobeMode = isGlobe)}
-			/>
-		</div>
-	</div>
+		<rect {width} {height} fill="#ffffff" />
 
-	<!-- Hover Tooltip -->
+		<!--
+			transform is set directly by d3-zoom on every scroll/drag frame,
+			bypassing Svelte's reactive system for maximum fluidity.
+		-->
+		<g bind:this={innerG}>
+			<!-- 1. Base fills + thin boundary strokes -->
+			{#each projectedFeatures as feature (feature.code ?? feature.name)}
+				{@const isSelected = feature.code !== null && feature.code === selectedRegion}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<path
+					d={feature.d}
+					fill={classification === 'quantile'
+						? classFillColor(
+								feature.count,
+								classBreaks,
+								classPalette,
+								palette.noData,
+								zeroIsData
+							)
+						: computeFillColor(
+								feature.count,
+								countRange,
+								effectiveColors,
+								palette.noData,
+								zeroIsData
+							)}
+					fill-opacity={classification === 'quantile'
+						? isSelected
+							? 0.7
+							: 1
+						: isSelected
+							? 0.5
+							: 0.7}
+					stroke="#000000"
+					stroke-width="0.5"
+					stroke-opacity="0.3"
+					stroke-linejoin="round"
+					cursor={feature.hasData ? 'pointer' : 'default'}
+					role={feature.hasData ? 'button' : undefined}
+					aria-label={feature.hasData && feature.count !== null
+						? `${feature.name}: ${formatValue(feature.count)}`
+						: undefined}
+					onmousemove={(event) => {
+						if (!feature.hasData) return;
+						hoveredCode = feature.code;
+						showTooltip(event, feature);
+					}}
+					onmouseleave={() => {
+						hoveredCode = null;
+					}}
+					onclick={() => handleClick(feature)}
+				/>
+			{/each}
+
+			<!-- 2. Selected region — fill overlay + border, both on top of all base fills -->
+			{#if selectedRegion}
+				{@const sf = projectedFeatures.find((f) => f.code === selectedRegion && f.hasData)}
+				{#if sf}
+					<path
+						d={sf.d}
+						fill={effectiveSelectedFill}
+						fill-opacity={selectedFillOpacity}
+						stroke={effectiveSelectedColor}
+						stroke-width={selectedStrokeWidth}
+						stroke-linejoin="round"
+						pointer-events="none"
+					/>
+				{/if}
+			{/if}
+
+			<!-- 3. Hover border — skip when the hovered region is already selected -->
+			{#if effectiveHovered && effectiveHovered !== selectedRegion}
+				{@const hf = projectedFeatures.find((f) => f.code === effectiveHovered)}
+				{#if hf}
+					<path
+						d={hf.d}
+						fill="none"
+						stroke={effectiveHoverColor}
+						stroke-width="2"
+						stroke-linejoin="round"
+						pointer-events="none"
+					/>
+				{/if}
+			{/if}
+
+			<!-- 4. Labels — always in the DOM, d3 toggles opacity directly to avoid DOM churn -->
+			<g bind:this={labelsG} opacity="0" pointer-events="none" style="transition: opacity 0.2s;">
+				{#each projectedFeatures as feature (feature.code ?? feature.name)}
+					{#if feature.hasData && isFinite(feature.centroid[0]) && isFinite(feature.centroid[1])}
+						<text
+							x={feature.centroid[0]}
+							y={feature.centroid[1]}
+							font-size="3"
+							text-anchor="middle"
+							dominant-baseline="central"
+							fill="#1e293b"
+							style="user-select: none;"
+						>{feature.name}</text>
+					{/if}
+				{/each}
+			</g>
+		</g>
+	</svg>
+
 	{#if tooltip}
 		<div
 			class="pointer-events-none absolute z-20 rounded-lg bg-slate-900 px-3 py-2 text-white shadow-xl"
@@ -659,12 +611,15 @@
 		>
 			<div class="text-sm font-semibold">{tooltip.name}</div>
 			<div class="text-xs text-slate-300">
-				Count: <span class="font-medium text-white">{tooltip.count.toLocaleString()}</span>
+				{#if tooltip.hasData && tooltip.count !== null}
+					{valueLabel}: <span class="font-medium text-white">{formatValue(tooltip.count)}</span>
+				{:else}
+					<span class="font-medium text-white">No data</span>
+				{/if}
 			</div>
 		</div>
 	{/if}
 
-	<!-- Legend - Automatically shown when there's data (industry standard for choropleth maps) -->
 	{#if showLegend && countRange.max > 0}
 		<Legend
 			min={countRange.min}
@@ -672,12 +627,12 @@
 			max={countRange.max}
 			title={legendTitle}
 			subtitle={legendSubtitle}
-			position="bottom"
-			{colors}
+			format={formatValue}
+			position={legendPosition}
+			colors={effectiveColors}
+			steps={classification === 'quantile'
+				? { breaks: classBreaks, palette: classPalette }
+				: undefined}
 		/>
 	{/if}
 </div>
-
-<style>
-	/* Cursor is controlled by JavaScript - no CSS override needed */
-</style>

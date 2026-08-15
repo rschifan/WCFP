@@ -3,12 +3,9 @@
  */
 
 /**
- * Format a count for display, showing "1.2k" for numbers >= 1000
+ * Format a count for display — exact number with thousands separators.
  */
 export function formatCount(count: number): string {
-	if (count >= 1000) {
-		return `${(count / 1000).toFixed(1)}k`;
-	}
 	return count.toLocaleString();
 }
 

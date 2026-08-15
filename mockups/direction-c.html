@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction C — Field station</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+	body{font-family:'Inter',ui-sans-serif,system-ui,sans-serif;background:#f6f1e8;color:#1f2937}
+	.serif{font-family:'Fraunces',serif}
+	.parchment{background:#f6f1e8}
+</style>
+</head>
+<body class="parchment">
+<div class="flex min-h-screen w-screen flex-col">
+	<header class="flex h-14 shrink-0 items-center justify-between border-b border-stone-300/80 px-6">
+		<div class="flex items-center gap-2">
+			<span class="text-xs font-semibold tracking-[0.24em] text-stone-700 uppercase">WCFP</span>
+			<span class="mx-1 h-4 w-px bg-stone-400"></span>
+			<span class="serif text-sm text-stone-700">World Checklist of Food Plants</span>
+		</div>
+		<nav class="flex items-center gap-6 text-[11px] font-semibold tracking-[0.18em] text-stone-600 uppercase">
+			<span class="text-stone-900">Map</span>
+			<span>Taxonomy</span>
+			<span>About</span>
+		</nav>
+	</header>
+
+	<section class="shrink-0 border-b border-stone-300/80 px-8 py-8">
+		<div class="mx-auto max-w-6xl">
+			<p class="text-[10px] font-semibold tracking-[0.32em] text-stone-500 uppercase">Volume I · Global Atlas</p>
+			<h1 class="serif mt-3 text-5xl leading-[1.05] text-stone-900 md:text-6xl">The world's<br /><em class="font-normal italic">edible flora</em></h1>
+			<p class="mt-4 max-w-2xl font-light text-stone-600">26,632 species. 438 families. 369 botanical regions of the Earth. Click a territory to read its catalogue.</p>
+
+			<div class="mt-6 flex flex-wrap items-center gap-3">
+				<div class="relative w-full max-w-md">
+					<svg class="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-stone-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+					<input type="text" placeholder="Search a region or country" class="w-full rounded-sm border border-stone-400/60 bg-white/80 py-2.5 pr-3 pl-11 text-sm text-stone-900 shadow-sm outline-none placeholder:text-stone-400 focus:border-stone-700" />
+				</div>
+				<span class="text-[10px] font-semibold tracking-[0.18em] text-stone-500 uppercase">or</span>
+				<button class="rounded-sm border border-stone-400/60 bg-white/80 px-4 py-2 text-xs font-semibold tracking-wider text-stone-700 uppercase hover:bg-stone-100">Browse by taxonomy</button>
+			</div>
+		</div>
+	</section>
+
+	<main class="relative min-h-0 flex-1 overflow-hidden">
+		<div class="absolute inset-0 text-emerald-800">
+			<svg viewBox="0 0 1000 500" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" class="h-full w-full">
+				<defs>
+					<pattern id="paper" width="8" height="8" patternUnits="userSpaceOnUse">
+						<rect width="8" height="8" fill="#f6f1e8"/>
+						<circle cx="1" cy="1" r="0.4" fill="#d6c9b4" />
+					</pattern>
+				</defs>
+				<rect width="1000" height="500" fill="url(#paper)"/>
+				<g fill="currentColor" stroke="#365314" stroke-width="0.7" stroke-linejoin="round" stroke-opacity="0.45">
+					<path d="M100 80 L180 70 L240 85 L290 120 L310 180 L280 230 L240 260 L200 270 L150 260 L120 220 L90 160 Z" fill-opacity="0.22" />
+					<path d="M245 290 L285 305 L295 345 L275 400 L235 440 L215 410 L210 360 L225 320 Z" fill-opacity="0.42" />
+					<path d="M430 90 L490 85 L540 95 L575 105 L585 150 L555 180 L500 175 L450 160 L425 130 Z" fill-opacity="0.26" />
+					<path d="M440 190 L510 195 L540 240 L520 320 L470 370 L445 335 L440 260 Z" fill-opacity="0.16" />
+					<path d="M600 80 L730 75 L860 95 L880 160 L830 210 L780 210 L720 180 L640 150 Z" fill-opacity="0.18" />
+					<path d="M720 195 L790 200 L810 245 L820 295 L775 310 L730 290 L705 245 Z" fill-opacity="0.62" />
+					<path d="M810 300 L855 305 L880 340 L870 385 L820 395 L795 355 Z" fill-opacity="0.34" />
+					<path d="M840 390 L900 385 L920 425 L880 455 L835 440 Z" fill-opacity="0.36" />
+				</g>
+			</svg>
+		</div>
+
+		<div class="absolute right-8 bottom-6 left-8 flex items-end justify-between">
+			<div>
+				<div class="flex items-center gap-3 text-[11px] font-semibold tracking-[0.24em] text-stone-600 uppercase">
+					<span>Density</span>
+					<span class="h-px w-16 bg-stone-400"></span>
+				</div>
+				<div class="mt-3 flex items-center gap-3">
+					<div class="h-1 w-48" style="background:linear-gradient(to right, #ecfccb, #65a30d, #365314)"></div>
+				</div>
+				<div class="mt-1.5 flex w-48 justify-between text-[11px] text-stone-500">
+					<span>Sparse</span><span>Typical</span><span>Rich</span>
+				</div>
+			</div>
+			<div class="text-right">
+				<p class="text-[10px] font-semibold tracking-[0.24em] text-stone-500 uppercase">Hovered</p>
+				<p class="serif mt-0.5 text-lg text-stone-900">— select a region —</p>
+			</div>
+		</div>
+	</main>
+
+	<footer class="shrink-0 border-t border-stone-300/80 px-8 py-5">
+		<div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
+			<p class="text-[10px] font-semibold tracking-[0.24em] text-stone-500 uppercase">In collaboration with</p>
+			<div class="flex flex-wrap items-center gap-x-8 gap-y-2 text-[11px] font-medium text-stone-600">
+				<span>NYBG</span>
+				<span class="h-3 w-px bg-stone-300"></span>
+				<span>Botaniska</span>
+				<span class="h-3 w-px bg-stone-300"></span>
+				<span>Royal Botanic Gardens, Kew</span>
+				<span class="h-3 w-px bg-stone-300"></span>
+				<span>Università di Torino</span>
+				<span class="h-3 w-px bg-stone-300"></span>
+				<span>Crop Trust</span>
+			</div>
+		</div>
+	</footer>
+</div>
+</body>
+</html>

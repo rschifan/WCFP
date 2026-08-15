@@ -9,6 +9,17 @@ node_modules
 /.svelte-kit
 /build
 
+# DuckDB generated database (built by scripts/build-duckdb.js)
+data/*.duckdb
+data/*.duckdb.wal
+data/*.duckdb.*
+
+# Archived pre-R1 inputs and any local scratch copy of the shared data drop.
+# These hold WCFP source files, which are distributed on request only — the bare
+# `data/*.csv` rules above do NOT match subdirectories, so these must be listed.
+data/_superseded_*/
+/tmp/
+
 # Large source data files (excluded to keep repo size manageable)
 # These files are required for preprocessing but should be obtained separately
 data/*.csv
@@ -24,6 +35,7 @@ data/*.pptx
 data/*.pdf
 data/~$*
 data/*.webloc
+docs/~$*
 *.mbtiles
 
 # IDE/Editor files
@@ -56,7 +68,17 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+!.env.development
+!.env.production
 
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Internal working docs — collaborator emails and unlisted Drive links.
+# Kept on disk, out of this public repository.
+docs/
+
+# Local agent instructions and tooling — never committed.
+CLAUDE.md
+.claude/

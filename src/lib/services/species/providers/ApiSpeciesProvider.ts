@@ -1,99 +1,92 @@
 import type { SpeciesDataProvider } from '../SpeciesDataProvider';
 import type { Species, RegionStats } from '$lib/types/species';
 import { ServiceError, ServiceErrorCode } from '../../errors';
+import { profileApiQuery } from '$lib/utils/api-profiler';
+import { config } from '../../config';
 
 /**
- * API-based species data provider (Future Implementation).
- * Fetches data from backend REST API endpoints.
- *
- * Features:
- * - Server-side computation (stats calculated on backend)
- * - Smaller payloads (only requested data)
- * - Real-time data updates
- * - Authentication support
- *
- * Usage:
- * 1. Implement backend API endpoints:
- *    - GET /api/species/:regionName - Returns species array
- *    - GET /api/species/:regionName/stats - Returns aggregated stats
- * 2. Change config.ts: speciesProvider = 'api'
- * 3. Deploy with SvelteKit adapter-node or similar
+ * API-backed species data provider.
+ * Fetches all runtime species data from the server-side DuckDB API.
  */
 export class ApiSpeciesProvider implements SpeciesDataProvider {
 	private cache = new Map<string, Species[]>();
-	private readonly apiUrl: string;
+	private readonly apiBaseUrl: string;
 
-	constructor(apiUrl = '/api/species') {
-		this.apiUrl = apiUrl;
+	constructor(apiBaseUrl: string = config.apiUrl) {
+		this.apiBaseUrl = apiBaseUrl;
 	}
 
 	async preload(): Promise<void> {
 		// Could warm up API connection or fetch popular regions
 	}
 
-	getCachedData(regionName: string): Species[] | null {
-		return this.cache.get(regionName) || null;
+	getCachedData(regionCode: string): Species[] | null {
+		return this.cache.get(regionCode) || null;
 	}
 
-	async getSpeciesByRegion(regionName: string): Promise<Species[]> {
+	async getSpeciesByRegion(regionCode: string): Promise<Species[]> {
 		// Check cache first
-		const cached = this.cache.get(regionName);
+		const cached = this.cache.get(regionCode);
 		if (cached) {
 			return cached;
 		}
 
 		// Fetch from API
-		const url = `${this.apiUrl}/${encodeURIComponent(regionName)}`;
+		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionCode)}/species`;
 
 		try {
-			const response = await fetch(url);
+			return await profileApiQuery(url, async () => {
+				const response = await fetch(url);
 
-			if (!response.ok) {
-				if (response.status === 404) {
-					// Expected: region has no data
+				if (!response.ok) {
+					if (response.status === 404) {
+						// Expected: region has no data
+						throw new ServiceError(
+							ServiceErrorCode.DATA_NOT_FOUND,
+							`No species data found for region ${regionCode}`,
+							{ regionCode, status: 404 }
+						);
+					}
+
+					// Network/server error
 					throw new ServiceError(
-						ServiceErrorCode.DATA_NOT_FOUND,
-						`No species data found for region: ${regionName}`,
-						{ regionName, status: 404 }
+						ServiceErrorCode.NETWORK_ERROR,
+						`HTTP ${response.status}: ${response.statusText}`,
+						{ regionCode, status: response.status, statusText: response.statusText }
 					);
 				}
 
-				// Network/server error
-				throw new ServiceError(
-					ServiceErrorCode.NETWORK_ERROR,
-					`HTTP ${response.status}: ${response.statusText}`,
-					{ regionName, status: response.status, statusText: response.statusText }
-				);
-			}
+				let result: unknown;
+				try {
+					result = await response.json();
+				} catch (parseError) {
+					// JSON parsing error
+					throw new ServiceError(
+						ServiceErrorCode.INVALID_DATA,
+						`Failed to parse API response for region ${regionCode}`,
+						{ regionCode, parseError }
+					);
+				}
 
-			let result: unknown;
-			try {
-				result = await response.json();
-			} catch (parseError) {
-				// JSON parsing error
-				throw new ServiceError(
-					ServiceErrorCode.INVALID_DATA,
-					`Failed to parse API response for region: ${regionName}`,
-					{ regionName, parseError }
-				);
-			}
+				// Handle both { data: [...] } and [...] response formats
+				const species = Array.isArray(result)
+					? result
+					: ((result as { data?: unknown }).data ?? []);
 
-			// Handle both { data: [...] } and [...] response formats
-			const species = Array.isArray(result) ? result : ((result as { data?: unknown }).data ?? []);
+				// Validate structure
+				if (!Array.isArray(species)) {
+					throw new ServiceError(
+						ServiceErrorCode.INVALID_DATA,
+						'Invalid API response format: expected array of species',
+						{ regionCode, dataType: typeof species }
+					);
+				}
 
-			// Validate structure
-			if (!Array.isArray(species)) {
-				throw new ServiceError(
-					ServiceErrorCode.INVALID_DATA,
-					'Invalid API response format: expected array of species',
-					{ regionName, dataType: typeof species }
-				);
-			}
+				// Cache it
+				this.cache.set(regionCode, species as Species[]);
 
-			// Cache it
-			this.cache.set(regionName, species as Species[]);
-
-			return species as Species[];
+				return species as Species[];
+			});
 		} catch (err) {
 			// Re-throw ServiceError as-is (already properly typed)
 			if (err instanceof ServiceError) {
@@ -104,61 +97,92 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new ServiceError(
 				ServiceErrorCode.UNKNOWN_ERROR,
-				`Failed to load species for "${regionName}": ${message}`,
-				{ regionName, originalError: err }
+				`Failed to load species for region ${regionCode}: ${message}`,
+				{ regionCode, originalError: err }
 			);
 		}
 	}
 
-	async getRegionStats(regionName: string): Promise<RegionStats> {
+	async getRegionStats(regionCode: string): Promise<RegionStats> {
 		// API can pre-calculate stats server-side (more efficient!)
-		const url = `${this.apiUrl}/${encodeURIComponent(regionName)}/stats`;
+		const url = `${this.apiBaseUrl}/regions/${encodeURIComponent(regionCode)}/stats`;
 
 		try {
-			const response = await fetch(url);
+			return await profileApiQuery(url, async () => {
+				const response = await fetch(url);
 
-			if (!response.ok) {
-				if (response.status === 404) {
-					// No stats for this region is treated as DATA_NOT_FOUND
+				if (!response.ok) {
+					if (response.status === 404) {
+						// No stats for this region is treated as DATA_NOT_FOUND
+						throw new ServiceError(
+							ServiceErrorCode.DATA_NOT_FOUND,
+							`No stats found for region ${regionCode}`,
+							{ regionCode, status: 404 }
+						);
+					}
+
 					throw new ServiceError(
-						ServiceErrorCode.DATA_NOT_FOUND,
-						`No stats found for region: ${regionName}`,
-						{ regionName, status: 404 }
+						ServiceErrorCode.NETWORK_ERROR,
+						`HTTP ${response.status}: ${response.statusText}`,
+						{ regionCode, status: response.status, statusText: response.statusText }
 					);
 				}
 
-				throw new ServiceError(
-					ServiceErrorCode.NETWORK_ERROR,
-					`HTTP ${response.status}: ${response.statusText}`,
-					{ regionName, status: response.status, statusText: response.statusText }
-				);
-			}
+				let result: unknown;
+				try {
+					result = await response.json();
+				} catch (parseError) {
+					throw new ServiceError(
+						ServiceErrorCode.INVALID_DATA,
+						`Failed to parse stats response for region ${regionCode}`,
+						{ regionCode, parseError }
+					);
+				}
 
-			let result: unknown;
-			try {
-				result = await response.json();
-			} catch (parseError) {
-				throw new ServiceError(
-					ServiceErrorCode.INVALID_DATA,
-					`Failed to parse stats response for region: ${regionName}`,
-					{ regionName, parseError }
-				);
-			}
+				// Basic structural validation
+				const payload = Array.isArray(result)
+					? null
+					: ((result as { data?: unknown }).data ?? result);
+				const stats = payload as Partial<RegionStats> & {
+					total_species?: number;
+					family_count?: number;
+					top_families?: Array<{ family: string; count: number }>;
+				};
+				const normalized: RegionStats = {
+					totalSpecies:
+						typeof stats.totalSpecies === 'number'
+							? stats.totalSpecies
+							: typeof stats.total_species === 'number'
+								? stats.total_species
+								: NaN,
+					familyCount:
+						typeof stats.familyCount === 'number'
+							? stats.familyCount
+							: typeof stats.family_count === 'number'
+								? stats.family_count
+								: NaN,
+					topFamilies: Array.isArray(stats.topFamilies)
+						? stats.topFamilies
+						: Array.isArray(stats.top_families)
+							? stats.top_families
+							: []
+				};
 
-			// Basic structural validation
-			const stats = result as Partial<RegionStats>;
-			if (
-				typeof stats.totalSpecies !== 'number' ||
-				typeof stats.familyCount !== 'number' ||
-				!Array.isArray(stats.topFamilies)
-			) {
-				throw new ServiceError(ServiceErrorCode.INVALID_DATA, 'Invalid stats response format', {
-					regionName,
-					result
-				});
-			}
+				if (
+					typeof normalized.totalSpecies !== 'number' ||
+					Number.isNaN(normalized.totalSpecies) ||
+					typeof normalized.familyCount !== 'number' ||
+					Number.isNaN(normalized.familyCount) ||
+					!Array.isArray(normalized.topFamilies)
+				) {
+					throw new ServiceError(ServiceErrorCode.INVALID_DATA, 'Invalid stats response format', {
+						regionCode,
+						result
+					});
+				}
 
-			return stats as RegionStats;
+				return normalized;
+			});
 		} catch (err) {
 			if (err instanceof ServiceError) {
 				throw err;
@@ -167,8 +191,8 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 			const message = err instanceof Error ? err.message : String(err);
 			throw new ServiceError(
 				ServiceErrorCode.UNKNOWN_ERROR,
-				`Failed to load stats for "${regionName}": ${message}`,
-				{ regionName, originalError: err }
+				`Failed to load stats for region ${regionCode}: ${message}`,
+				{ regionCode, originalError: err }
 			);
 		}
 	}
@@ -181,7 +205,7 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
 /**
  * Example backend implementation (SvelteKit):
  *
- * // src/routes/api/species/[region]/+server.ts
+ * // src/routes/api/v1/regions/[region]/species/+server.ts
  * import { json } from '@sveltejs/kit';
  * import type { RequestHandler } from './$types';
  * import db from '$lib/server/database';
@@ -194,7 +218,7 @@ export class ApiSpeciesProvider implements SpeciesDataProvider {
  *   return json(species);
  * };
  *
- * // src/routes/api/species/[region]/stats/+server.ts
+ * // src/routes/api/v1/regions/[region]/stats/+server.ts
  * export const GET: RequestHandler = async ({ params }) => {
  *   const stats = await db.query(`
  *     SELECT

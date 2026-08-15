@@ -20,6 +20,8 @@
 		colors?: LegendColors;
 		showLevelLabels?: boolean;
 		maxDigits?: number;
+		/** Overrides the compact integer formatting — a share is not a count. */
+		format?: (value: number) => string;
 		noDataColor?: string;
 		noDataLabel?: string;
 	}
@@ -35,6 +37,7 @@
 		colors = { low: '#e5f5e0', mid: '#a1d99b', high: '#31a354' },
 		showLevelLabels = false,
 		maxDigits = 4,
+		format,
 		noDataColor,
 		noDataLabel = 'No data'
 	}: Props = $props();
@@ -80,19 +83,19 @@
 
 			<div class="grid grid-cols-3 text-xs text-slate-600">
 				<div class="justify-self-start text-left">
-					<div class="font-bold text-slate-700">{formatCountMaxDigits(min, maxDigits)}</div>
+					<div class="font-bold text-slate-700">{format ? format(min) : formatCountMaxDigits(min, maxDigits)}</div>
 					{#if showLevelLabels}
 						<div class="text-slate-500">Low</div>
 					{/if}
 				</div>
 				<div class="text-center">
-					<div class="font-bold text-slate-700">{formatCountMaxDigits(mid, maxDigits)}</div>
+					<div class="font-bold text-slate-700">{format ? format(mid) : formatCountMaxDigits(mid, maxDigits)}</div>
 					{#if showLevelLabels}
 						<div class="text-slate-500">Medium</div>
 					{/if}
 				</div>
 				<div class="justify-self-end text-right">
-					<div class="font-bold text-slate-700">{formatCountMaxDigits(max, maxDigits)}</div>
+					<div class="font-bold text-slate-700">{format ? format(max) : formatCountMaxDigits(max, maxDigits)}</div>
 					{#if showLevelLabels}
 						<div class="text-slate-500">High</div>
 					{/if}

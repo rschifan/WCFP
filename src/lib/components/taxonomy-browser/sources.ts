@@ -32,18 +32,26 @@ function readApiData<T>(url: string, signal?: AbortSignal): Promise<T> {
 	});
 }
 
-function createApiTaxonomySource(basePath: string): TaxonomyBrowserSource {
+/**
+ * @param scopeQuery A pre-encoded `?key=value` applied to browse requests, used to keep a
+ *   region-wide scope filter on bootstrap and children as well as query.
+ */
+function createApiTaxonomySource(basePath: string, scopeQuery = ''): TaxonomyBrowserSource {
+	const scopeParam = scopeQuery.replace(/^\?/, '');
+	const join = (path: string) =>
+		scopeParam ? `${path}${path.includes('?') ? '&' : '?'}${scopeParam}` : path;
+
 	return {
 		loadBootstrap: (signal) =>
-			readApiData<TaxonomyBootstrapPayload>(`${basePath}/bootstrap`, signal),
+			readApiData<TaxonomyBootstrapPayload>(join(`${basePath}/bootstrap`), signal),
 		loadChildren: (parentId, signal) =>
 			readApiData<TaxonomyChildrenPayload>(
-				`${basePath}/children?parentId=${encodeURIComponent(parentId)}`,
+				join(`${basePath}/children?parentId=${encodeURIComponent(parentId)}`),
 				signal
 			),
 		query: (query, signal) => {
 			const queryString = serializeTaxonomyBrowserQuery(query);
-			return readApiData<TaxonomyQueryPayload>(`${basePath}/query?${queryString}`, signal);
+			return readApiData<TaxonomyQueryPayload>(join(`${basePath}/query?${queryString}`), signal);
 		}
 	};
 }
@@ -52,9 +60,21 @@ export function createGlobalTaxonomySource(): TaxonomyBrowserSource {
 	return createApiTaxonomySource(`${base}/api/v1/taxonomy`);
 }
 
-/** @param regionCode TDWG Level-3 code, e.g. `ITA`. */
-export function createRegionTaxonomySource(regionCode: string): TaxonomyBrowserSource {
-	return createApiTaxonomySource(`${base}/api/v1/regions/${encodeURIComponent(regionCode)}/taxonomy`);
+/**
+ * @param regionCode TDWG Level-3 code, e.g. `ITA`.
+ * @param status Occurrence status to restrict the whole tree to, or null for every record.
+ *   Passed on the URL so bootstrap and lazily-loaded children stay consistent — expanding a
+ *   family must not reintroduce taxa the filter excluded.
+ */
+export function createRegionTaxonomySource(
+	regionCode: string,
+	status?: string | null
+): TaxonomyBrowserSource {
+	const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
+	return createApiTaxonomySource(
+		`${base}/api/v1/regions/${encodeURIComponent(regionCode)}/taxonomy`,
+		suffix
+	);
 }
 
 export type { TaxonomyBrowserQuery };

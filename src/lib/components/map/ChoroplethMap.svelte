@@ -584,6 +584,7 @@
 			max={countRange.max}
 			title={legendTitle}
 			subtitle={legendSubtitle}
+			format={formatValue}
 			position={legendPosition}
 			colors={effectiveColors}
 		/>

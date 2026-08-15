@@ -22,6 +22,8 @@
 		filters: TaxonomyFilters;
 		availableLifeforms: string[];
 		onFilterChange: (filters: TaxonomyFilters) => void;
+		/** Only meaningful in the global view — see the note on geographySection below. */
+		showGeographicFilter?: boolean;
 	}
 
 	let {
@@ -33,11 +35,12 @@
 		searchError = null,
 		filters,
 		availableLifeforms,
-		onFilterChange
+		onFilterChange,
+		showGeographicFilter = true
 	}: Props = $props();
 
 	const activeFilterCount = $derived(
-		(filters.geographicOnly ? 1 : 0) + filters.lifeforms.size + filters.uses.size
+		(showGeographicFilter && filters.geographicOnly ? 1 : 0) + filters.lifeforms.size + filters.uses.size
 	);
 
 	function toggleGeographicOnly() {
@@ -93,6 +96,9 @@
 	});
 
 	const sections = $derived.by((): FilterSectionModel[] => {
+		// "Geographic" keeps only taxa that have distribution records at all. Inside a region
+		// every listed taxon has them by construction, so the toggle cannot change the result
+		// there — it is offered only in the global taxonomy view, where 1,187 taxa lack them.
 		const geographySection: FilterSectionModel = {
 			id: 'taxonomy-geographic',
 			title: 'Geographic',
@@ -110,7 +116,7 @@
 		};
 
 		return [
-			geographySection,
+			...(showGeographicFilter ? [geographySection] : []),
 			...buildTraitFilterSections({
 				selectedUses: filters.uses,
 				selectedLifeforms: filters.lifeforms,

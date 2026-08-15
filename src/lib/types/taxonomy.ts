@@ -132,6 +132,8 @@ export function createEmptyTaxonomyFilters(): TaxonomyFilters {
 }
 
 export interface TaxonomyTraitEntry {
+	/** Region-scoped only: how this taxon occurs in the region being viewed. */
+	occurrenceStatus?: OccurrenceStatusFilter;
 	lifeforms: string[];
 	uses: SpeciesUseKey[];
 	signatures?: string[];

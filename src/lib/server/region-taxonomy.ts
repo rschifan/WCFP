@@ -174,6 +174,7 @@ function createSpeciesNode(row: SpeciesRow): TaxonomyNodeNormalized {
 	);
 	const lifeforms = row.lifeform?.trim() ? [row.lifeform.trim()] : [];
 	const hasCwr = row.cwr || undefined;
+	const occurrenceStatus = row.occurrence_status;
 
 	return {
 		id: buildSpeciesId(family, genus, row.wcfp_id),
@@ -190,9 +191,10 @@ function createSpeciesNode(row: SpeciesRow): TaxonomyNodeNormalized {
 		wcfpId: row.wcfp_id,
 		...(row.authors ? { authors: row.authors } : {}),
 		hasDistribution: true,
-		...(lifeforms.length > 0 || uses.length > 0 || hasCwr
+		...(lifeforms.length > 0 || uses.length > 0 || hasCwr || occurrenceStatus
 			? {
 					traits: {
+						...(occurrenceStatus ? { occurrenceStatus } : {}),
 						lifeforms,
 						uses,
 						...(hasCwr ? { hasCwr } : {})

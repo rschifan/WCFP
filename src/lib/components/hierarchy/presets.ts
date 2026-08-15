@@ -1,7 +1,7 @@
 import { Dna, TreeDeciduous } from 'lucide-svelte';
 import { ABOUT_USE_CATEGORIES, SPECIES_USE_ORDER } from '$lib/constants/portal-help';
 import type { Species, SpeciesUseKey } from '$lib/types/species';
-import type { TaxonomyTraitEntry } from '$lib/types/taxonomy';
+import type { OccurrenceStatusFilter, TaxonomyTraitEntry } from '$lib/types/taxonomy';
 import type {
 	HierarchyEntryBadge,
 	HierarchyEntryBadgeTone,
@@ -31,6 +31,21 @@ const USE_BADGE_DEFINITIONS = Object.fromEntries(
 		}
 	])
 ) as Record<SpeciesUseKey, SpeciesBadgeDefinition>;
+
+/** Occurrence status is a property of the taxon *in this region*, not of the taxon itself. */
+const OCCURRENCE_BADGE_TONE = {
+	native: 'lime',
+	introduced: 'orange',
+	extinct: 'rose',
+	doubtful: 'slate'
+} as const;
+
+const OCCURRENCE_BADGE_DESCRIPTION = {
+	native: 'Occurs naturally in this region',
+	introduced: 'Brought to this region by people',
+	extinct: 'No longer present in this region',
+	doubtful: 'Presence in this region is uncertain'
+} as const;
 
 const CWR_BADGE_DEFINITION: SpeciesBadgeDefinition = {
 	label: 'Crop Wild Relative',
@@ -115,10 +130,23 @@ function buildTraitBadges(
 		lifeforms: readonly string[];
 		uses: readonly SpeciesUseKey[];
 		hasCwr?: boolean;
+		occurrenceStatus?: OccurrenceStatusFilter;
 	},
 	options: { showLifeformLabel?: boolean } = {}
 ): HierarchyEntryBadge[] {
 	const badges: HierarchyEntryBadge[] = [];
+
+	if (traitSource.occurrenceStatus) {
+		const status = traitSource.occurrenceStatus;
+		badges.push({
+			id: `${traitSource.idPrefix}:occurrence`,
+			label: status,
+			tone: OCCURRENCE_BADGE_TONE[status],
+			tooltip: `Recorded as ${status} in this region`,
+			ariaLabel: `Recorded as ${status} in this region`,
+			description: OCCURRENCE_BADGE_DESCRIPTION[status]
+		});
+	}
 
 	if (traitSource.lifeforms.length > 0) {
 		badges.push({
@@ -167,7 +195,8 @@ export function buildRegionSpeciesBadges(species: Species): HierarchyEntryBadge[
 			idPrefix: `species:${species.wcfpId}`,
 			lifeforms: species.lifeform ? [species.lifeform] : [],
 			uses: SPECIES_USE_ORDER.filter((useKey) => Boolean(species.uses?.[useKey])),
-			hasCwr: species.cwr
+			hasCwr: species.cwr,
+			occurrenceStatus: species.occurrenceStatus
 		},
 		{ showLifeformLabel: true }
 	);
@@ -184,7 +213,8 @@ export function buildTaxonomyTraitBadges(
 			idPrefix: options.idPrefix ?? 'taxonomy',
 			lifeforms: entry.lifeforms,
 			uses: entry.uses,
-			hasCwr: entry.hasCwr
+			hasCwr: entry.hasCwr,
+			occurrenceStatus: entry.occurrenceStatus
 		},
 		{ showLifeformLabel: options.showLifeformLabel }
 	);

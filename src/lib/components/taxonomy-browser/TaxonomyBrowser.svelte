@@ -13,6 +13,8 @@
 	import { createTaxonomyBrowserController } from './controller';
 
 	interface Props {
+		/** False inside a region, where the geographic filter is a no-op. */
+		showGeographicFilter?: boolean;
 		source: TaxonomyBrowserSource;
 		selectedNodeId?: string;
 		searchPlaceholder?: string;
@@ -27,6 +29,7 @@
 	}
 
 	let {
+		showGeographicFilter = true,
 		source,
 		selectedNodeId,
 		searchPlaceholder = 'Search taxonomy...',
@@ -137,6 +140,7 @@
 			searchError={searchError}
 			{filters}
 			{availableLifeforms}
+			{showGeographicFilter}
 			onFilterChange={controller.setFilters}
 		/>
 

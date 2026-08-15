@@ -8,18 +8,28 @@
 		regionCode: string | null;
 		/** Display label for the heading. */
 		regionName: string | null;
-		/** Active map occurrence filter, if any — shown alongside the total. */
-		occurrence?: { status: string; count: number } | null;
+		/** Active occurrence filter, if any — narrows the tree and is shown in the header. */
+		occurrence?: { status: string; regionTotal: number } | null;
+		facetSlot?: import('svelte').Snippet;
 		isMobile?: boolean;
 		onClose?: () => void;
 	}
 
-	let { regionCode, regionName, occurrence = null, isMobile = false, onClose }: Props = $props();
+	let {
+		regionCode,
+		regionName,
+		occurrence = null,
+		facetSlot,
+		isMobile = false,
+		onClose
+	}: Props = $props();
 
+	// Rebuilding the source on a status change is what makes the whole tree — bootstrap and
+	// every lazily-loaded child — honour the filter.
 	const browserSource = $derived.by<TaxonomyBrowserSource | null>(() => {
 		const code = regionCode?.trim();
-		return code ? createRegionTaxonomySource(code) : null;
+		return code ? createRegionTaxonomySource(code, occurrence?.status ?? null) : null;
 	});
 </script>
 
-<SpeciesPanelView {regionName} {occurrence} {isMobile} {browserSource} {onClose} />
+<SpeciesPanelView {regionName} {occurrence} {facetSlot} {isMobile} {browserSource} {onClose} />

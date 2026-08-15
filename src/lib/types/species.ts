@@ -23,6 +23,8 @@ export interface SpeciesUses {
  * Represents a single plant species
  */
 export interface Species {
+	/** Occurrence status in the region being viewed. Region-scoped results only. */
+	occurrenceStatus?: 'native' | 'introduced' | 'extinct' | 'doubtful';
 	wcfpId: number;
 	name: string;
 	authors: string;

@@ -30,7 +30,9 @@ async function loadGeoJSON(): Promise<FeatureCollection> {
 					code: f.code,
 					area: f.area,
 					unique_count: f.unique_count,
-					family_count: f.family_count
+					family_count: f.family_count,
+					flora_richness: f.flora_richness,
+					pct_of_flora: f.pct_of_flora
 				}
 			}))
 		};

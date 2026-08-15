@@ -1,7 +1,7 @@
 import { get, writable, type Readable } from 'svelte/store';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 
-export const REGION_GEOJSON_VERSION = '2026-08-15-r1-data';
+export const REGION_GEOJSON_VERSION = '2026-08-15-flora-share';
 
 export type RegionFeatureProperties = Record<string, unknown> & {
 	LEVEL3_COD?: string;
@@ -10,6 +10,10 @@ export type RegionFeatureProperties = Record<string, unknown> & {
 	area?: string;
 	unique_count?: number;
 	family_count?: number;
+	/** Total accepted vascular flora of the area, per WCVP. */
+	flora_richness?: number;
+	/** WCFP taxa as a percentage of that flora — the paper's Fig. 4 measure. */
+	pct_of_flora?: number;
 };
 
 export type RegionFeature = Feature<Geometry | null, RegionFeatureProperties>;

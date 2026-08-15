@@ -93,6 +93,8 @@ export interface SpeciesRow {
 	source_link: string;
 	references_all: string;
 	uses_total: number;
+	/** Present only for region-scoped queries: this taxon's status in that region. */
+	occurrence_status?: OccurrenceStatus;
 }
 
 export interface TaxonomyNodeRow {
@@ -120,6 +122,8 @@ export interface GeoFeatureRow {
 	geometry: string;
 	unique_count: number;
 	family_count: number;
+	flora_richness: number;
+	pct_of_flora: number;
 }
 
 export interface DistributionRow {
@@ -153,7 +157,8 @@ export function mapSpeciesRow(row: SpeciesRow): Species {
 		...(row.cwr ? { cwr: true } : {}),
 		...(uses ? { uses } : {}),
 		...(row.source_link ? { sourceLink: row.source_link } : {}),
-		...(row.references_all ? { referencesAll: parseReferencesAll(row.references_all) } : {})
+		...(row.references_all ? { referencesAll: parseReferencesAll(row.references_all) } : {}),
+		...(row.occurrence_status ? { occurrenceStatus: row.occurrence_status } : {})
 	};
 }
 
@@ -222,7 +227,9 @@ export async function getGeoFeatures(conn: Connection): Promise<GeoFeatureRow[]>
 			r.code,
 			ST_AsGeoJSON(ST_Simplify(r.geom, 0.01)) AS geometry,
 			COALESCE(rs.total_species, 0)            AS unique_count,
-			COALESCE(rs.family_count,  0)            AS family_count
+			COALESCE(rs.family_count,  0)            AS family_count,
+			r.flora_richness                         AS flora_richness,
+			r.pct_of_flora                           AS pct_of_flora
 		FROM regions r
 		LEFT JOIN region_stats rs USING (code)`
 	);
@@ -293,6 +300,32 @@ export async function getRegionCountsByStatus(
 	);
 }
 
+export interface StatusFacet {
+	occurrence_status: OccurrenceStatus;
+	count: number;
+}
+
+/**
+ * Taxa per occurrence status, for one region or across all of them.
+ *
+ * Drives the facet counts in the filter rail. Showing the size of each bucket before it is
+ * clicked is what turns the filter into a finding, and it costs one grouped scan.
+ */
+export async function getStatusFacets(
+	conn: Connection,
+	code?: string | null
+): Promise<StatusFacet[]> {
+	const scoped = typeof code === 'string' && code.length > 0;
+	return query<StatusFacet>(
+		conn,
+		`SELECT occurrence_status, COUNT(DISTINCT wcfp_id) AS count
+		 FROM distribution
+		 ${scoped ? 'WHERE code = ?' : ''}
+		 GROUP BY occurrence_status`,
+		scoped ? [code] : []
+	);
+}
+
 /**
  * Top 10 families for a region.
  */
@@ -325,15 +358,32 @@ export async function getRegionTaxonomyAvailableLifeforms(
 
 export async function getRegionTaxonomyFamilyRows(
 	conn: Connection,
-	code: string
+	code: string,
+	status?: OccurrenceStatus | null
 ): Promise<RegionTaxonomyFamilyRow[]> {
+	if (!status) {
+		return query<RegionTaxonomyFamilyRow>(
+			conn,
+			`SELECT family, species_count, genus_count
+			 FROM region_family_taxonomy
+			 WHERE code = ?
+			 ORDER BY species_count DESC, family`,
+			[code]
+		);
+	}
+
 	return query<RegionTaxonomyFamilyRow>(
 		conn,
-		`SELECT family, species_count, genus_count
-		 FROM region_family_taxonomy
-		 WHERE code = ?
+		`SELECT
+			COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') AS family,
+			COUNT(DISTINCT d.wcfp_id) AS species_count,
+			COUNT(DISTINCT COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown')) AS genus_count
+		 FROM distribution d
+		 JOIN species s USING (wcfp_id)
+		 WHERE d.code = ? AND d.occurrence_status = ?
+		 GROUP BY family
 		 ORDER BY species_count DESC, family`,
-		[code]
+		[code, status]
 	);
 }
 
@@ -352,11 +402,34 @@ export async function getRegionTaxonomyGenusRows(
 	);
 }
 
+export async function getRegionTaxonomyGenusRowsByStatus(
+	conn: Connection,
+	code: string,
+	family: string,
+	status: OccurrenceStatus
+): Promise<RegionTaxonomyGenusRow[]> {
+	return query<RegionTaxonomyGenusRow>(
+		conn,
+		`SELECT
+			COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') AS family,
+			COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown') AS genus,
+			COUNT(DISTINCT d.wcfp_id) AS species_count
+		 FROM distribution d
+		 JOIN species s USING (wcfp_id)
+		 WHERE d.code = ? AND d.occurrence_status = ?
+		   AND COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') = ?
+		 GROUP BY family, genus
+		 ORDER BY species_count DESC, genus`,
+		[code, status, family]
+	);
+}
+
 export async function getRegionTaxonomySpeciesRows(
 	conn: Connection,
 	code: string,
 	family: string,
-	genus: string
+	genus: string,
+	status?: OccurrenceStatus | null
 ): Promise<SpeciesRow[]> {
 	return query<SpeciesRow>(
 		conn,
@@ -364,14 +437,16 @@ export async function getRegionTaxonomySpeciesRows(
 				s.lifeform, s.cwr, s.use_human_food,
 				s.use_animal_food, s.use_environmental, s.use_fuels, s.use_gene_sources,
 				s.use_invertebrate_food, s.use_materials, s.use_medicines,
-				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total
+				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total,
+				d.occurrence_status
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
 		 WHERE d.code = ?
 		   AND COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') = ?
 		   AND COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown') = ?
+		   ${status ? 'AND d.occurrence_status = ?' : ''}
 		 ORDER BY s.taxon_name`,
-		[code, family, genus]
+		status ? [code, family, genus, status] : [code, family, genus]
 	);
 }
 

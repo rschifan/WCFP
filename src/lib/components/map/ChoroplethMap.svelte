@@ -5,7 +5,14 @@
 	import { select } from 'd3-selection';
 	import Legend from '../Legend.svelte';
 	import { APP_MAP_PALETTE, type MapPalette } from '$lib/constants/palette';
-	import { computeFillColor, computeRange, type ValueRange } from '$lib/map/color-scale';
+	import {
+		classColors,
+		classFillColor,
+		computeFillColor,
+		computeQuantileBreaks,
+		computeRange,
+		type ValueRange
+	} from '$lib/map/color-scale';
 
 	// ---------------------------------------------------------------------------
 	// Types
@@ -39,6 +46,8 @@
 	interface EnrichedResult {
 		geoJSON: FeatureCollection;
 		range: ValueRange;
+		/** Every value that counts as data, for classifications that need the distribution. */
+		values: number[];
 		missingCodes: string[];
 	}
 
@@ -71,6 +80,14 @@
 		formatValue?: (value: number) => string;
 		/** True when zero is a real reading rather than an absence (ratios, not counts). */
 		zeroIsData?: boolean;
+		/**
+		 * `continuous` stretches the ramp linearly between the extremes. `quantile` splits the
+		 * areas into equal-count classes instead — the standard choice for a skewed distribution,
+		 * where a linear ramp would spend its dark end on a handful of outliers.
+		 */
+		classification?: 'continuous' | 'quantile';
+		/** Number of classes when `classification` is `quantile`. */
+		classCount?: number;
 		legendTitle?: string;
 		legendSubtitle?: string;
 		legendPosition?: 'top' | 'bottom' | 'bottom-left';
@@ -129,7 +146,9 @@
 		autoFitBounds = true,
 		valueLabel = 'Count',
 		formatValue = (v: number) => v.toLocaleString(),
-		zeroIsData = false
+		zeroIsData = false,
+		classification = 'continuous',
+		classCount = 5
 	}: Props = $props();
 
 	// ---------------------------------------------------------------------------
@@ -169,6 +188,7 @@
 		const EMPTY: EnrichedResult = {
 			geoJSON: { type: 'FeatureCollection', features: [] },
 			range: { min: 0, max: 0, mid: 0 },
+			values: [],
 			missingCodes: []
 		};
 
@@ -214,11 +234,20 @@
 			: [];
 
 		const range = computeRange(counts, zeroIsData);
+		const values = counts.slice();
 
-		return { geoJSON: { type: 'FeatureCollection', features }, range, missingCodes };
+		return { geoJSON: { type: 'FeatureCollection', features }, range, values, missingCodes };
 	});
 
 	const countRange = $derived(enriched.range);
+
+	// Quantile classification, computed once per data change rather than per polygon.
+	const classBreaks = $derived(
+		classification === 'quantile' ? computeQuantileBreaks(enriched.values, classCount, zeroIsData) : []
+	);
+	const classPalette = $derived(
+		classification === 'quantile' ? classColors(effectiveColors, classCount) : []
+	);
 
 	// ---------------------------------------------------------------------------
 	// Warning for unmatched distribution codes
@@ -482,14 +511,28 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<path
 					d={feature.d}
-					fill={computeFillColor(
-						feature.count,
-						countRange,
-						effectiveColors,
-						palette.noData,
-						zeroIsData
-					)}
-					fill-opacity={isSelected ? 0.5 : 0.7}
+					fill={classification === 'quantile'
+						? classFillColor(
+								feature.count,
+								classBreaks,
+								classPalette,
+								palette.noData,
+								zeroIsData
+							)
+						: computeFillColor(
+								feature.count,
+								countRange,
+								effectiveColors,
+								palette.noData,
+								zeroIsData
+							)}
+					fill-opacity={classification === 'quantile'
+						? isSelected
+							? 0.7
+							: 1
+						: isSelected
+							? 0.5
+							: 0.7}
 					stroke="#000000"
 					stroke-width="0.5"
 					stroke-opacity="0.3"
@@ -587,6 +630,9 @@
 			format={formatValue}
 			position={legendPosition}
 			colors={effectiveColors}
+			steps={classification === 'quantile'
+				? { breaks: classBreaks, palette: classPalette }
+				: undefined}
 		/>
 	{/if}
 </div>

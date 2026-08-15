@@ -52,7 +52,7 @@
 
 	const legendSubtitle = $derived(
 		mapMode === 'pct'
-			? 'WCFP taxa as % of accepted flora'
+			? '% of accepted flora'
 			: mapMode === 'all'
 				? 'Food plant taxa'
 				: `Food plant taxa — ${mapMode}`
@@ -174,6 +174,7 @@
 						{formatValue}
 						valueLabel={mapMode === 'pct' ? 'Share of flora' : 'Taxa'}
 						zeroIsData={mapMode === 'pct'}
+						classification={mapMode === 'pct' ? 'quantile' : 'continuous'}
 						legendPosition="bottom-left"
 					/>
 				{/if}

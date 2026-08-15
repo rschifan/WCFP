@@ -32,7 +32,7 @@
 		showGeographicFilter = true,
 		source,
 		selectedNodeId,
-		searchPlaceholder = 'Search taxonomy...',
+		searchPlaceholder = 'Search',
 		showStartNode = true,
 		emptyMessage = 'No matching taxonomy nodes found.',
 		class: className = '',

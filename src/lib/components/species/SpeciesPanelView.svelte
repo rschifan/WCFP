@@ -157,7 +157,7 @@
 					source={browserSource}
 					showStartNode={false}
 					showGeographicFilter={false}
-					searchPlaceholder="Search families, genera, or species..."
+					searchPlaceholder="Search"
 					emptyMessage="No matching taxonomy nodes found."
 					getNodeBadges={getNodeBadges}
 					getSpeciesDetailSource={getSpeciesDetailSource}

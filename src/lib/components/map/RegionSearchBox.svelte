@@ -239,7 +239,7 @@
 			onfocus={onFocus}
 			onblur={onBlur}
 			onkeydown={onKeyDown}
-			placeholder="Search region or country..."
+			placeholder="Search"
 			role="combobox"
 			aria-label="Search geographic area"
 			aria-autocomplete="list"

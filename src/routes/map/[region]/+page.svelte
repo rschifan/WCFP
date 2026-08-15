@@ -48,8 +48,6 @@
 		facets={occurrenceFilter.current.facets}
 		value={occurrenceFilter.current.status}
 		onChange={setOccurrenceStatus}
-		disabled={occurrenceFilter.current.disabled}
-		disabledReason="Share of flora is published for all occurrences, so a status filter does not apply to it."
 		layout="chips"
 	/>
 {/snippet}

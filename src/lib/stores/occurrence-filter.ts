@@ -2,13 +2,14 @@ import { get, writable, type Readable } from 'svelte/store';
 import type { OccurrenceStatusFilter } from '$lib/types/taxonomy';
 
 /**
- * The occurrence-status filter, shared by everything that answers to it.
+ * The occurrence-status filter applied to the region panel's list.
  *
- * This is the single source of truth rather than component state because the selection has to
- * reach three places that cannot pass props to one another: the choropleth in the map layout,
- * the filter rail (which is the layout's own aside before a region is chosen, and the region
- * panel afterwards), and the taxonomy tree inside that panel. Holding it in one store is what
- * makes the map and the list incapable of disagreeing.
+ * Scoped deliberately: the map has its own control in the bar above it. This one narrows the
+ * taxa listed for the selected region and nothing else.
+ *
+ * It lives in a store rather than component state because the facet counts are fetched by the
+ * map layout while the control and the tree both sit inside the region panel, which arrives
+ * through the route's children snippet — props cannot cross that boundary.
  */
 export interface OccurrenceFacet {
 	occurrence_status: OccurrenceStatusFilter;
@@ -20,11 +21,9 @@ export interface OccurrenceFilterState {
 	status: OccurrenceStatusFilter | null;
 	/** Taxa per status in the current scope — the counts shown beside each option. */
 	facets: OccurrenceFacet[];
-	/** True when the active measure is published for all occurrences and cannot be filtered. */
-	disabled: boolean;
 }
 
-const EMPTY_STATE: OccurrenceFilterState = { status: null, facets: [], disabled: false };
+const EMPTY_STATE: OccurrenceFilterState = { status: null, facets: [] };
 
 const store = writable<OccurrenceFilterState>(EMPTY_STATE);
 
@@ -40,15 +39,6 @@ export function setOccurrenceStatus(status: OccurrenceStatusFilter | null): void
 /** Replace the counts, e.g. after the selected region changed. */
 export function setOccurrenceFacets(facets: OccurrenceFacet[]): void {
 	store.update((state) => ({ ...state, facets }));
-}
-
-/** Disable the filter and clear it — used when the measure cannot be filtered by status. */
-export function setOccurrenceDisabled(disabled: boolean): void {
-	store.update((state) => ({
-		...state,
-		disabled,
-		status: disabled ? null : state.status
-	}));
 }
 
 export function resetOccurrenceFilter(): void {

@@ -27,7 +27,7 @@
 	}
 
 	let {
-		searchPlaceholder = 'Search taxonomy...',
+		searchPlaceholder = 'Search',
 		searchQuery,
 		onSearchChange,
 		onClearSearch,

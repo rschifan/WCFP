@@ -15,9 +15,9 @@ import { getSpeciesForRegion } from '$lib/server/queries.js';
 import type { Connection } from 'duckdb';
 
 export const GET = async ({ params, url }) => {
-	const area = decodeURIComponent(params.region).trim();
-	if (!area || area.length > 500) {
-		error(400, { message: 'Invalid region name' });
+	const code = decodeURIComponent(params.region).trim().toUpperCase();
+	if (!/^[A-Z]{3}$/.test(code)) {
+		error(400, { message: 'Region must be a three-letter TDWG Level-3 code' });
 	}
 
 	const lifeformParam = url.searchParams.get('lifeform');
@@ -36,7 +36,7 @@ export const GET = async ({ params, url }) => {
 	let conn: Connection | undefined;
 	try {
 		conn = borrowConnection();
-		const species = await getSpeciesForRegion(conn, area, {
+		const species = await getSpeciesForRegion(conn, code, {
 			lifeforms: lifeformParam ? lifeformParam.split(',').map((s) => s.trim()) : undefined,
 			cwr: cwrParam === 'true' ? true : undefined,
 			uses: usesParam ? usesParam.split(',').map((s) => s.trim()) : undefined,

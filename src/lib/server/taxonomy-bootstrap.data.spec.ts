@@ -5,25 +5,19 @@ import XLSX from 'xlsx';
 import { getConnection, query as runQuery } from './database';
 import { mapTaxonomyNodeRow, queryTaxonomyRows, type TaxonomyNodeRow } from './queries';
 import type { SpeciesUseKey } from '$lib/types/species';
+import {
+	USE_COLUMN_BY_KEY,
+	WCFP_WORKSHEET_NAME
+} from '../../../scripts/lib/wcfp-workbook.js';
 
-const WCFP_WORKSHEET_NAME = 'WCFP_260120';
-const WORKBOOK_PATH = path.resolve(process.cwd(), 'data/3.WCFP.xlsx');
+// Sheet name and use-column mapping are imported, not re-declared: this suite exists to catch
+// a source/database divergence, and a second copy of the mapping would drift silently past it.
+const WORKBOOK_PATH = path.resolve(process.cwd(), 'data/WCFP.xlsx');
 const DB_PATH = path.resolve(process.cwd(), 'data/wcfp.duckdb');
 const HAS_RUNTIME_DATA = existsSync(WORKBOOK_PATH) && existsSync(DB_PATH);
 const SAMPLE_SIZE = 10;
 const SAMPLE_SEED = 'taxonomy-uses-db-vs-source-v1';
-const WORKBOOK_USE_COLUMN_BY_KEY: Record<SpeciesUseKey, string> = {
-	humanFood: 'HumanFood',
-	animalFood: 'AnimalFood',
-	environmentalUses: 'EnvironmentalUses',
-	fuels: 'Fuels',
-	geneSources: 'GeneSources',
-	invertebrateFood: 'InvertebrateFood',
-	materials: 'Materials',
-	medicines: 'Medicines',
-	poisons: 'Poisons',
-	socialUses: 'SocialUses'
-};
+const WORKBOOK_USE_COLUMN_BY_KEY = USE_COLUMN_BY_KEY as Record<SpeciesUseKey, string>;
 
 type WorkbookRow = Record<string, unknown>;
 

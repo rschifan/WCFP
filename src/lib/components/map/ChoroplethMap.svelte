@@ -531,7 +531,7 @@
 					cursor={feature.hasData ? 'pointer' : 'default'}
 					role={feature.hasData ? 'button' : undefined}
 					aria-label={feature.hasData && feature.count !== null
-						? `${feature.name}: ${feature.count.toLocaleString()} species`
+						? `${feature.name}: ${feature.count.toLocaleString()} taxa`
 						: undefined}
 					onmousemove={(event) => {
 						if (!feature.hasData) return;

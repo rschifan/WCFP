@@ -224,34 +224,33 @@ export async function getGeoFeatures(conn: Connection): Promise<GeoFeatureRow[]>
 			COALESCE(rs.total_species, 0)            AS unique_count,
 			COALESCE(rs.family_count,  0)            AS family_count
 		FROM regions r
-		LEFT JOIN region_stats rs USING (area)
-		WHERE r.code != 'ANT'`
+		LEFT JOIN region_stats rs USING (code)`
 	);
 }
 
 /**
- * All region stats (area, total_species, family_count).
+ * All region stats, keyed by TDWG3 code.
  */
 export async function getAllRegionStats(conn: Connection): Promise<RegionStats[]> {
 	return query<RegionStats>(
 		conn,
-		`SELECT rs.area, r.code, rs.total_species, rs.family_count
+		`SELECT r.area, r.code, rs.total_species, rs.family_count
 		 FROM region_stats rs
-		 JOIN regions r USING (area)`
+		 JOIN regions r USING (code)`
 	);
 }
 
 /**
  * Stats for a single region.
  */
-export async function getRegionStats(conn: Connection, area: string): Promise<RegionStats | null> {
+export async function getRegionStats(conn: Connection, code: string): Promise<RegionStats | null> {
 	const rows = await query<RegionStats>(
 		conn,
-		`SELECT rs.area, r.code, rs.total_species, rs.family_count
+		`SELECT r.area, r.code, rs.total_species, rs.family_count
 		 FROM region_stats rs
-		 JOIN regions r USING (area)
-		 WHERE rs.area = ?`,
-		[area]
+		 JOIN regions r USING (code)
+		 WHERE rs.code = ?`,
+		[code]
 	);
 	return rows[0] ?? null;
 }
@@ -259,28 +258,28 @@ export async function getRegionStats(conn: Connection, area: string): Promise<Re
 /**
  * Top 10 families for a region.
  */
-export async function getRegionTopFamilies(conn: Connection, area: string): Promise<TopFamily[]> {
+export async function getRegionTopFamilies(conn: Connection, code: string): Promise<TopFamily[]> {
 	return query<TopFamily>(
 		conn,
-		`SELECT area, family, cnt, rank FROM region_top_families WHERE area = ? ORDER BY rank`,
-		[area]
+		`SELECT code, family, cnt, rank FROM region_top_families WHERE code = ? ORDER BY rank`,
+		[code]
 	);
 }
 
 export async function getRegionTaxonomyAvailableLifeforms(
 	conn: Connection,
-	area: string
+	code: string
 ): Promise<string[]> {
 	const rows = await query<{ lifeform: string }>(
 		conn,
 		`SELECT DISTINCT s.lifeform AS lifeform
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
-		 WHERE d.area = ?
+		 WHERE d.code = ?
 		   AND s.lifeform IS NOT NULL
 		   AND TRIM(s.lifeform) != ''
 		 ORDER BY s.lifeform`,
-		[area]
+		[code]
 	);
 
 	return rows.map((row) => row.lifeform);
@@ -288,36 +287,36 @@ export async function getRegionTaxonomyAvailableLifeforms(
 
 export async function getRegionTaxonomyFamilyRows(
 	conn: Connection,
-	area: string
+	code: string
 ): Promise<RegionTaxonomyFamilyRow[]> {
 	return query<RegionTaxonomyFamilyRow>(
 		conn,
 		`SELECT family, species_count, genus_count
 		 FROM region_family_taxonomy
-		 WHERE area = ?
+		 WHERE code = ?
 		 ORDER BY species_count DESC, family`,
-		[area]
+		[code]
 	);
 }
 
 export async function getRegionTaxonomyGenusRows(
 	conn: Connection,
-	area: string,
+	code: string,
 	family: string
 ): Promise<RegionTaxonomyGenusRow[]> {
 	return query<RegionTaxonomyGenusRow>(
 		conn,
 		`SELECT family, genus, species_count
 		 FROM region_genus_taxonomy
-		 WHERE area = ? AND family = ?
+		 WHERE code = ? AND family = ?
 		 ORDER BY species_count DESC, genus`,
-		[area, family]
+		[code, family]
 	);
 }
 
 export async function getRegionTaxonomySpeciesRows(
 	conn: Connection,
-	area: string,
+	code: string,
 	family: string,
 	genus: string
 ): Promise<SpeciesRow[]> {
@@ -330,17 +329,17 @@ export async function getRegionTaxonomySpeciesRows(
 				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
-		 WHERE d.area = ?
+		 WHERE d.code = ?
 		   AND COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') = ?
 		   AND COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown') = ?
 		 ORDER BY s.taxon_name`,
-		[area, family, genus]
+		[code, family, genus]
 	);
 }
 
 export async function queryRegionTaxonomyMatchedFamilies(
 	conn: Connection,
-	area: string,
+	code: string,
 	searchQuery: string
 ): Promise<RegionTaxonomyFamilyRow[]> {
 	const substring = `%${searchQuery.trim().toLowerCase()}%`;
@@ -349,17 +348,17 @@ export async function queryRegionTaxonomyMatchedFamilies(
 		conn,
 		`SELECT family, species_count, genus_count
 		 FROM region_family_taxonomy
-		 WHERE area = ?
+		 WHERE code = ?
 		   AND LOWER(family) LIKE ?
 		 ORDER BY species_count DESC, family
 		 LIMIT 500`,
-		[area, substring]
+		[code, substring]
 	);
 }
 
 export async function queryRegionTaxonomyMatchedGenera(
 	conn: Connection,
-	area: string,
+	code: string,
 	searchQuery: string
 ): Promise<RegionTaxonomyGenusRow[]> {
 	const substring = `%${searchQuery.trim().toLowerCase()}%`;
@@ -368,17 +367,17 @@ export async function queryRegionTaxonomyMatchedGenera(
 		conn,
 		`SELECT family, genus, species_count
 		 FROM region_genus_taxonomy
-		 WHERE area = ?
+		 WHERE code = ?
 		   AND LOWER(genus) LIKE ?
 		 ORDER BY species_count DESC, genus
 		 LIMIT 500`,
-		[area, substring]
+		[code, substring]
 	);
 }
 
 export async function queryRegionTaxonomyMatchedSpecies(
 	conn: Connection,
-	area: string,
+	code: string,
 	params: {
 		q?: string;
 		geographicOnly?: boolean;
@@ -387,8 +386,8 @@ export async function queryRegionTaxonomyMatchedSpecies(
 		includeTaxonomyNameMatches?: boolean;
 	}
 ): Promise<SpeciesRow[]> {
-	const conditions: string[] = ['d.area = ?'];
-	const queryParams: unknown[] = [area];
+	const conditions: string[] = ['d.code = ?'];
+	const queryParams: unknown[] = [code];
 	const searchQuery = params.q?.trim().toLowerCase() ?? '';
 
 	if (params.lifeforms?.length) {
@@ -446,7 +445,7 @@ export async function queryRegionTaxonomyMatchedSpecies(
  */
 export async function getSpeciesForRegion(
 	conn: Connection,
-	area: string,
+	code: string,
 	filters: {
 		lifeforms?: string[];
 		cwr?: boolean;
@@ -455,8 +454,8 @@ export async function getSpeciesForRegion(
 		offset?: number;
 	} = {}
 ): Promise<Species[]> {
-	const conditions: string[] = ['d.area = ?'];
-	const params: unknown[] = [area];
+	const conditions: string[] = ['d.code = ?'];
+	const params: unknown[] = [code];
 
 	if (filters.lifeforms?.length) {
 		const placeholders = filters.lifeforms.map(() => '?').join(', ');
@@ -498,7 +497,7 @@ export async function getSpeciesForRegion(
 
 /**
  * Distribution for a taxonomy node at a given rank.
- * Returns area → species count.
+ * Returns TDWG3 code → species count.
  *
  * @param rank    'species' | 'genus' | 'family' | 'order' | 'class' | 'phylum' | 'kingdom'
  * @param name    taxon name at that rank
@@ -519,7 +518,7 @@ export async function getDistributionForRank(
 			conn,
 			`SELECT r.code, r.area AS name
 			 FROM distribution d
-			 JOIN regions r USING (area)
+			 JOIN regions r USING (code)
 			 WHERE d.wcfp_id = ?
 			 GROUP BY r.code, r.area
 			 ORDER BY r.code`,
@@ -535,7 +534,7 @@ export async function getDistributionForRank(
 			`SELECT r.code, r.area AS name, COUNT(DISTINCT d.wcfp_id) AS count
 			 FROM distribution d
 			 JOIN species s USING (wcfp_id)
-			 JOIN regions r USING (area)
+			 JOIN regions r USING (code)
 			 WHERE s.${col} = ?
 			 GROUP BY r.code, r.area
 			 HAVING count > 0

@@ -1,7 +1,7 @@
 import { get, writable, type Readable } from 'svelte/store';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 
-export const REGION_GEOJSON_VERSION = '2026-04-06-code-join';
+export const REGION_GEOJSON_VERSION = '2026-08-15-r1-data';
 
 export type RegionFeatureProperties = Record<string, unknown> & {
 	LEVEL3_COD?: string;

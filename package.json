@@ -19,6 +19,7 @@
 		"test": "npm run test:unit -- --run",
 		"refresh:data": "pnpm build:db && pnpm build:geo-aliases",
 		"build:db": "node scripts/build-duckdb.js",
+		"verify:data": "node scripts/verify-data.js",
 		"build:geo-aliases": "node scripts/build-region-countries.js",
 		"build:full": "pnpm refresh:data && pnpm build"
 	},

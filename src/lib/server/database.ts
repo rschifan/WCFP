@@ -6,10 +6,16 @@
  *                      kingdom, phylum, class, order, lifeform, cwr,
  *                      use_* boolean flags, source_link, references_all,
  *                      uses_total
- *   distribution       area + wcfp_id (PK), FK → species
- *   regions            area, code, geom (TDWG Level-3 geometries from shapefile)
- *   region_stats       area (PK), total_species, family_count (pre-aggregated)
- *   region_top_families  area, family, cnt, rank (top 10 per region)
+ *   distribution       code + wcfp_id (PK), FK → species, occurrence_status,
+ *                      introduced / extinct / location_doubtful flags
+ *   regions            code (PK), area, country, iso_alpha2, iso_alpha3,
+ *                      unique_count_published, percentage, flora_richness,
+ *                      pct_of_flora, geom
+ *   region_stats       code (PK), total_species, family_count (pre-aggregated)
+ *   region_top_families  code, family, cnt, rank (top 10 per region)
+ *
+ * Regions are keyed by TDWG Level-3 code throughout. `area` is a display label taken from the
+ * published dataset — names change between vintages, codes do not.
  *
  * Opened once at first request; reused for the lifetime of the process.
  * Each request opens its own lightweight Connection and closes it in finally.

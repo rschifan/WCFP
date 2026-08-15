@@ -277,12 +277,12 @@ export function clearRegionTaxonomyCache(): void {
 	childrenInflight.clear();
 }
 
-async function loadRegionMeta(area: string): Promise<RegionTaxonomyMeta> {
+async function loadRegionMeta(code: string): Promise<RegionTaxonomyMeta> {
 	return withRegionTaxonomySchemaRecovery(async () => {
 		const conn = borrowConnection();
 
 		try {
-			const availableLifeforms = await getRegionTaxonomyAvailableLifeforms(conn, area);
+			const availableLifeforms = await getRegionTaxonomyAvailableLifeforms(conn, code);
 			return {
 				startFromId: ROOT_ID,
 				availableLifeforms
@@ -293,39 +293,39 @@ async function loadRegionMeta(area: string): Promise<RegionTaxonomyMeta> {
 	});
 }
 
-async function getRegionMeta(area: string): Promise<RegionTaxonomyMeta> {
-	const cached = metaCache.get(area);
+async function getRegionMeta(code: string): Promise<RegionTaxonomyMeta> {
+	const cached = metaCache.get(code);
 	if (cached) {
 		return cached;
 	}
 
-	const inflight = metaPromiseCache.get(area);
+	const inflight = metaPromiseCache.get(code);
 	if (inflight) {
 		return inflight;
 	}
 
-	const promise = loadRegionMeta(area)
+	const promise = loadRegionMeta(code)
 		.then((meta) => {
-			metaCache.set(area, meta);
+			metaCache.set(code, meta);
 			return meta;
 		})
 		.finally(() => {
-			metaPromiseCache.delete(area);
+			metaPromiseCache.delete(code);
 		});
 
-	metaPromiseCache.set(area, promise);
+	metaPromiseCache.set(code, promise);
 	return promise;
 }
 
-async function loadRegionBootstrap(area: string): Promise<TaxonomyBootstrapPayload> {
+async function loadRegionBootstrap(code: string): Promise<TaxonomyBootstrapPayload> {
 	return withRegionTaxonomySchemaRecovery(async () => {
 		const conn = borrowConnection();
 
 		try {
 			const [meta, stats, familyRows] = await Promise.all([
-				getRegionMeta(area),
-				getRegionStats(conn, area),
-				getRegionTaxonomyFamilyRows(conn, area)
+				getRegionMeta(code),
+				getRegionStats(conn, code),
+				getRegionTaxonomyFamilyRows(conn, code)
 			]);
 
 			const totalSpeciesCount = stats?.total_species ?? 0;
@@ -346,35 +346,35 @@ async function loadRegionBootstrap(area: string): Promise<TaxonomyBootstrapPaylo
 	});
 }
 
-export async function getRegionTaxonomyBootstrap(area: string): Promise<TaxonomyBootstrapPayload> {
-	const cached = bootstrapCache.get(area);
+export async function getRegionTaxonomyBootstrap(code: string): Promise<TaxonomyBootstrapPayload> {
+	const cached = bootstrapCache.get(code);
 	if (cached) {
 		return cached;
 	}
 
-	const inflight = bootstrapPromiseCache.get(area);
+	const inflight = bootstrapPromiseCache.get(code);
 	if (inflight) {
 		return inflight;
 	}
 
-	const promise = loadRegionBootstrap(area)
+	const promise = loadRegionBootstrap(code)
 		.then((payload) => {
-			bootstrapCache.set(area, payload);
+			bootstrapCache.set(code, payload);
 			return payload;
 		})
 		.finally(() => {
-			bootstrapPromiseCache.delete(area);
+			bootstrapPromiseCache.delete(code);
 		});
 
-	bootstrapPromiseCache.set(area, promise);
+	bootstrapPromiseCache.set(code, promise);
 	return promise;
 }
 
 export async function getRegionTaxonomyChildren(
-	area: string,
+	code: string,
 	parentId: string
 ): Promise<TaxonomyChildrenPayload> {
-	const key = `${area}::${parentId}`;
+	const key = `${code}::${parentId}`;
 	const inflight = childrenInflight.get(key);
 	if (inflight) {
 		return inflight;
@@ -390,7 +390,7 @@ export async function getRegionTaxonomyChildren(
 			}
 
 			if (parent.rank === 'root') {
-				const familyRows = await getRegionTaxonomyFamilyRows(conn, area);
+				const familyRows = await getRegionTaxonomyFamilyRows(conn, code);
 				return {
 					parentId,
 					nodes: familyRows.map((row) => createFamilyNode(row))
@@ -398,14 +398,14 @@ export async function getRegionTaxonomyChildren(
 			}
 
 			if (parent.rank === 'family') {
-				const genusRows = await getRegionTaxonomyGenusRows(conn, area, parent.family);
+				const genusRows = await getRegionTaxonomyGenusRows(conn, code, parent.family);
 				return {
 					parentId,
 					nodes: genusRows.map((row) => createGenusNode(row))
 				};
 			}
 
-			const speciesRows = await getRegionTaxonomySpeciesRows(conn, area, parent.family, parent.genus);
+			const speciesRows = await getRegionTaxonomySpeciesRows(conn, code, parent.family, parent.genus);
 			return {
 				parentId,
 				nodes: speciesRows.map((row) => createSpeciesNode(row))
@@ -422,7 +422,7 @@ export async function getRegionTaxonomyChildren(
 }
 
 export async function queryRegionTaxonomy(
-	area: string,
+	code: string,
 	params: {
 		q?: string;
 		geographicOnly?: boolean;
@@ -434,7 +434,7 @@ export async function queryRegionTaxonomy(
 		const conn = borrowConnection();
 
 		try {
-			const [meta, stats] = await Promise.all([getRegionMeta(area), getRegionStats(conn, area)]);
+			const [meta, stats] = await Promise.all([getRegionMeta(code), getRegionStats(conn, code)]);
 			const totalSpeciesCount = stats?.total_species ?? 0;
 			const rootNode = createRootNode(totalSpeciesCount, stats?.family_count ?? 0);
 			const searchQuery = params.q?.trim() ?? '';
@@ -442,7 +442,7 @@ export async function queryRegionTaxonomy(
 				Boolean(params.geographicOnly) ||
 				Boolean(params.lifeforms?.length) ||
 				Boolean(params.uses?.length);
-			const familyRows = await getRegionTaxonomyFamilyRows(conn, area);
+			const familyRows = await getRegionTaxonomyFamilyRows(conn, code);
 			const familyByName = new Map(
 				familyRows.map((row) => [normalizeTaxonomyValue(row.family), row] as const)
 			);
@@ -463,7 +463,7 @@ export async function queryRegionTaxonomy(
 					return cached;
 				}
 
-				const genusRows = await getRegionTaxonomyGenusRows(conn, area, family);
+				const genusRows = await getRegionTaxonomyGenusRows(conn, code, family);
 				for (const row of genusRows) {
 					genusByKey.set(
 						`${normalizeTaxonomyValue(row.family)}::${normalizeTaxonomyValue(row.genus)}`,
@@ -500,15 +500,15 @@ export async function queryRegionTaxonomy(
 			}
 
 			if (hasTraitFilters) {
-				const matchedSpecies = await queryRegionTaxonomyMatchedSpecies(conn, area, params);
+				const matchedSpecies = await queryRegionTaxonomyMatchedSpecies(conn, code, params);
 				for (const row of matchedSpecies) {
 					await includeSpeciesRow(row);
 				}
 			} else if (searchQuery) {
 				const [matchedFamilies, matchedGenera, matchedSpecies] = await Promise.all([
-					queryRegionTaxonomyMatchedFamilies(conn, area, searchQuery),
-					queryRegionTaxonomyMatchedGenera(conn, area, searchQuery),
-					queryRegionTaxonomyMatchedSpecies(conn, area, {
+					queryRegionTaxonomyMatchedFamilies(conn, code, searchQuery),
+					queryRegionTaxonomyMatchedGenera(conn, code, searchQuery),
+					queryRegionTaxonomyMatchedSpecies(conn, code, {
 						q: searchQuery,
 						includeTaxonomyNameMatches: false
 					})

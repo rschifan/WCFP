@@ -9,21 +9,21 @@ import { getRegionStats, getRegionTopFamilies } from '$lib/server/queries.js';
 import type { Connection } from 'duckdb';
 
 export const GET = async ({ params }) => {
-	const area = decodeURIComponent(params.region).trim();
-	if (!area || area.length > 500) {
-		error(400, { message: 'Invalid region name' });
+	const code = decodeURIComponent(params.region).trim().toUpperCase();
+	if (!/^[A-Z]{3}$/.test(code)) {
+		error(400, { message: 'Region must be a three-letter TDWG Level-3 code' });
 	}
 
 	let conn: Connection | undefined;
 	try {
 		conn = borrowConnection();
 		const [stats, topFamilies] = await Promise.all([
-			getRegionStats(conn, area),
-			getRegionTopFamilies(conn, area)
+			getRegionStats(conn, code),
+			getRegionTopFamilies(conn, code)
 		]);
 
 		if (!stats) {
-			error(404, { message: `Region "${area}" not found` });
+			error(404, { message: `Region "${code}" not found` });
 		}
 
 		return json({

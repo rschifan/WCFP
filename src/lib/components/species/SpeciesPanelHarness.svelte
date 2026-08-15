@@ -2,11 +2,12 @@
 	import SpeciesPanel from './SpeciesPanel.svelte';
 
 	interface Props {
-		selectedRegion: string | null;
+		regionCode: string | null;
+		regionName: string | null;
 		isMobile: boolean;
 	}
 
 	const props: Props = $props();
 </script>
 
-<SpeciesPanel selectedRegion={props.selectedRegion} isMobile={props.isMobile} />
+<SpeciesPanel regionCode={props.regionCode} regionName={props.regionName} isMobile={props.isMobile} />

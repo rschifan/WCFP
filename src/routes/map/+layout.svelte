@@ -52,7 +52,7 @@
 			<div class="min-w-0">
 				<h1 class="truncate text-xl font-semibold text-slate-900">Food plants worldwide</h1>
 				<p class="mt-0.5 text-sm text-slate-500">
-					Distribution of edible plant species across 369 botanical regions.
+					Distribution of edible plant taxa across 367 botanical regions.
 				</p>
 			</div>
 			<div class="shrink-0">

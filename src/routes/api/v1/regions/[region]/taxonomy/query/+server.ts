@@ -3,7 +3,7 @@ import { queryRegionTaxonomy } from '$lib/server/region-taxonomy.js';
 import type { SpeciesUseKey } from '$lib/types/species';
 
 export const GET = async ({ params, url }) => {
-	const area = decodeURIComponent(params.region).trim();
+	const code = decodeURIComponent(params.region).trim().toUpperCase();
 	const q = url.searchParams.get('q')?.trim() ?? '';
 	const geographicOnly = url.searchParams.get('geographicOnly') === 'true';
 	const lifeforms = url.searchParams
@@ -15,8 +15,8 @@ export const GET = async ({ params, url }) => {
 		.map((value) => value.trim())
 		.filter(Boolean) as SpeciesUseKey[];
 
-	if (!area || area.length > 500) {
-		error(400, { message: 'Invalid region name' });
+	if (!/^[A-Z]{3}$/.test(code)) {
+		error(400, { message: 'Region must be a three-letter TDWG Level-3 code' });
 	}
 
 	if (!q && !geographicOnly && lifeforms.length === 0 && uses.length === 0) {
@@ -28,7 +28,7 @@ export const GET = async ({ params, url }) => {
 	let data;
 
 	try {
-		data = await queryRegionTaxonomy(area, {
+		data = await queryRegionTaxonomy(code, {
 			q,
 			geographicOnly,
 			lifeforms,

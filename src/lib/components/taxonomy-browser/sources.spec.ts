@@ -57,18 +57,18 @@ describe('region taxonomy source', () => {
 	it('uses the region-scoped taxonomy API contract for bootstrap and children', async () => {
 		expect.assertions(3);
 
-		const source = createRegionTaxonomySource('Costa Rica');
+		const source = createRegionTaxonomySource('COS');
 		await source.loadBootstrap();
 		await source.loadChildren('region-root');
 
 		expect(globalThis.fetch).toHaveBeenNthCalledWith(
 			1,
-			'/api/v1/regions/Costa%20Rica/taxonomy/bootstrap',
+			'/api/v1/regions/COS/taxonomy/bootstrap',
 			expect.objectContaining({ signal: undefined })
 		);
 		expect(globalThis.fetch).toHaveBeenNthCalledWith(
 			2,
-			'/api/v1/regions/Costa%20Rica/taxonomy/children?parentId=region-root',
+			'/api/v1/regions/COS/taxonomy/children?parentId=region-root',
 			expect.objectContaining({ signal: undefined })
 		);
 		expect(globalThis.fetch).toHaveBeenCalledTimes(2);
@@ -77,7 +77,7 @@ describe('region taxonomy source', () => {
 	it('serializes query filters through the shared taxonomy source contract', async () => {
 		expect.assertions(1);
 
-		const source = createRegionTaxonomySource('Costa Rica');
+		const source = createRegionTaxonomySource('COS');
 		const filters = createEmptyTaxonomyFilters();
 		filters.lifeforms = new Set(['annual']);
 		filters.uses = new Set(['humanFood']);
@@ -85,7 +85,7 @@ describe('region taxonomy source', () => {
 		await source.query({ q: 'hydro', filters });
 
 		expect(globalThis.fetch).toHaveBeenCalledWith(
-			'/api/v1/regions/Costa%20Rica/taxonomy/query?q=hydro&lifeform=annual&use=humanFood',
+			'/api/v1/regions/COS/taxonomy/query?q=hydro&lifeform=annual&use=humanFood',
 			expect.objectContaining({ signal: undefined })
 		);
 	});

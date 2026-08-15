@@ -2,16 +2,16 @@ import { error, json } from '@sveltejs/kit';
 import { getRegionTaxonomyBootstrap } from '$lib/server/region-taxonomy.js';
 
 export const GET = async ({ params }) => {
-	const area = decodeURIComponent(params.region).trim();
+	const code = decodeURIComponent(params.region).trim().toUpperCase();
 
-	if (!area || area.length > 500) {
-		error(400, { message: 'Invalid region name' });
+	if (!/^[A-Z]{3}$/.test(code)) {
+		error(400, { message: 'Region must be a three-letter TDWG Level-3 code' });
 	}
 
 	let data;
 
 	try {
-		data = await getRegionTaxonomyBootstrap(area);
+		data = await getRegionTaxonomyBootstrap(code);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : 'Failed to load region taxonomy';
 		error(500, { message });

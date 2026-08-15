@@ -42,9 +42,11 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 4. **Obtain source data files** (required for preprocessing):
 
    The preprocessing scripts require the following WCFP source data files in the `data/` directory:
-   - `data/1.geo_distr_taxa.csv` (55 MB) - Species geographic distribution data
-   - `data/3.WCFP.xlsx` - World Checklist of Food Plants (WCFP) species data
-   - `data/wgsrpd-master/` - TDWG geographic region data (optional)
+   - `data/WCFP.xlsx` - the WCFP taxon table deposited with the paper (26,622 taxa)
+   - `data/geo_distr_taxa_ISO_R1.csv` (45 MB) - distribution records with `occurrence_status`
+   - `data/TDWG3_count_wcfp_ISO_R1.csv` - the published per-area counts, ISO codes and
+     `flora_richness` / `pct_of_flora`
+   - `data/wgsrpd-master/` - TDWG geographic region data (geometry only)
 
    **Note**: These files are excluded from git due to their size. You need to obtain them separately:
    - From a team shared location
@@ -59,10 +61,25 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
    pnpm refresh:data
    ```
 
-   This rebuilds `data/wcfp.duckdb` from the canonical `WCFP_260120` sheet in `data/3.WCFP.xlsx`
-   together with the geographic distribution CSV and shapefile.
+   This rebuilds `data/wcfp.duckdb` from the `WCFP` sheet in `data/WCFP.xlsx` together with the
+   distribution and per-area count CSVs and the TDWG shapefile.
 
-6. Start the development server:
+   The build **fails** unless every one of the 367 areas' computed taxon counts equals the figure
+   published in the paper. Regions are keyed by TDWG Level-3 code throughout; area names are
+   display labels taken from the published dataset, never join keys.
+
+6. Verify the result against the published dataset:
+
+   ```bash
+   pnpm verify:data
+   ```
+
+   This re-reads the source files independently of the database and asserts the figures the
+   portal displays — taxon, genus and family totals, per-area counts, occurrence-status tallies,
+   and the use flags. A renamed workbook column degrades silently to `false`/`Unknown` rather
+   than erroring, so this check is what catches it.
+
+7. Start the development server:
 
    ```bash
    pnpm dev
@@ -81,6 +98,7 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
 - `pnpm format` - Format code with Prettier
 - `pnpm refresh:data` - Rebuild the DuckDB database used at runtime
 - `pnpm build:db` - Rebuild `data/wcfp.duckdb`
+- `pnpm verify:data` - Check the built database against the published dataset
 
 ## Building for Production
 
@@ -220,7 +238,7 @@ data is distributed on request. From the repository root:
 sha256sum -c data/MANIFEST.sha256
 ```
 
-All five entries must report `OK`. A mismatch means your copy differs from the one the
+All six entries must report `OK`. A mismatch means your copy differs from the one the
 deployed database was built from, and `pnpm refresh:data` would produce a different
 result.
 

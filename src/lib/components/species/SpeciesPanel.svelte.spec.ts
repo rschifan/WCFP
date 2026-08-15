@@ -191,7 +191,8 @@ describe('SpeciesPanel shared search state', () => {
 		const view = render(SpeciesPanelHarness, {
 			target: target ?? document.body,
 			props: {
-				selectedRegion: 'Region A',
+				regionCode: 'RGA',
+				regionName: 'Region A',
 				isMobile
 			}
 		});
@@ -203,7 +204,8 @@ describe('SpeciesPanel shared search state', () => {
 		await expect.element(searchInput).toHaveValue('hydro');
 
 		await view.rerender({
-			selectedRegion: 'Region B',
+			regionCode: 'RGB',
+			regionName: 'Region B',
 			isMobile
 		});
 
@@ -216,7 +218,8 @@ describe('SpeciesPanel shared search state', () => {
 		render(SpeciesPanelHarness, {
 			target: target ?? document.body,
 			props: {
-				selectedRegion: 'Region A',
+				regionCode: 'RGA',
+				regionName: 'Region A',
 				isMobile: false
 			}
 		});

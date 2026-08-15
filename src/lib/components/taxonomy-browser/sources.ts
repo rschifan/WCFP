@@ -52,10 +52,9 @@ export function createGlobalTaxonomySource(): TaxonomyBrowserSource {
 	return createApiTaxonomySource(`${base}/api/v1/taxonomy`);
 }
 
-export function createRegionTaxonomySource(regionName: string): TaxonomyBrowserSource {
-	return createApiTaxonomySource(
-		`${base}/api/v1/regions/${encodeURIComponent(regionName)}/taxonomy`
-	);
+/** @param regionCode TDWG Level-3 code, e.g. `ITA`. */
+export function createRegionTaxonomySource(regionCode: string): TaxonomyBrowserSource {
+	return createApiTaxonomySource(`${base}/api/v1/regions/${encodeURIComponent(regionCode)}/taxonomy`);
 }
 
 export type { TaxonomyBrowserQuery };

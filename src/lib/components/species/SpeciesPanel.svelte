@@ -4,17 +4,20 @@
 	import SpeciesPanelView from './SpeciesPanelView.svelte';
 
 	interface Props {
-		selectedRegion: string | null;
+		/** TDWG Level-3 code — the region identifier used by the API. */
+		regionCode: string | null;
+		/** Display label for the heading. */
+		regionName: string | null;
 		isMobile?: boolean;
 		onClose?: () => void;
 	}
 
-	let { selectedRegion, isMobile = false, onClose }: Props = $props();
+	let { regionCode, regionName, isMobile = false, onClose }: Props = $props();
 
 	const browserSource = $derived.by<TaxonomyBrowserSource | null>(() => {
-		const region = selectedRegion?.trim();
-		return region ? createRegionTaxonomySource(region) : null;
+		const code = regionCode?.trim();
+		return code ? createRegionTaxonomySource(code) : null;
 	});
 </script>
 
-<SpeciesPanelView {selectedRegion} {isMobile} {browserSource} {onClose} />
+<SpeciesPanelView {regionName} {isMobile} {browserSource} {onClose} />

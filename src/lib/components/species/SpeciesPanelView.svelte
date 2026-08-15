@@ -27,13 +27,13 @@
 	}
 
 	interface Props {
-		selectedRegion: string | null;
+		regionName: string | null;
 		isMobile?: boolean;
 		browserSource: TaxonomyBrowserSource | null;
 		onClose?: () => void;
 	}
 
-	let { selectedRegion, isMobile: _isMobile = false, browserSource, onClose }: Props = $props();
+	let { regionName, isMobile: _isMobile = false, browserSource, onClose }: Props = $props();
 
 	let browserSummary = $state<TaxonomyBrowserSummary>({
 		totalSpeciesCount: 0,
@@ -80,7 +80,7 @@
 	</div>
 {/snippet}
 
-{#if selectedRegion}
+{#if regionName}
 	{#if onClose}
 		<button
 			type="button"
@@ -101,7 +101,7 @@
 			<div class="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
 				<div class="min-w-0 flex-1">
 					<p class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Region</p>
-					<h2 class="mt-1 truncate text-lg font-semibold text-slate-900">{selectedRegion}</h2>
+					<h2 class="mt-1 truncate text-lg font-semibold text-slate-900">{regionName}</h2>
 					{#if totalSpeciesCount > 0}
 						<p class="mt-1 text-sm text-slate-600">
 							{#if browserSummary.hasActiveQuery && visibleSpeciesCount !== totalSpeciesCount}

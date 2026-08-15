@@ -3,11 +3,16 @@
 /**
  * Build DuckDB database from source data files.
  *
+ * The R1 files deposited with the paper are the single source of truth. Regions are keyed by
+ * TDWG Level-3 code, never by name: names are display labels that change between dataset
+ * vintages, and joining on them silently dropped 15 populated areas.
+ *
  * Input:
- *   - data/3.WCFP.xlsx             (26,632 rows / 26,622 distinct taxa, with taxonomy + uses;
- *                                   ten pairs share an IPNI id, pending an upstream fix)
- *   - data/1.geo_distr_taxa.csv    (376K distribution rows: WCFP_ID, area)
- *   - data/wgsrpd-master/level3/level3.shp  (TDWG Level-3 geometries)
+ *   - data/WCFP.xlsx                    (26,622 taxa, sheet "WCFP", with taxonomy + uses)
+ *   - data/geo_distr_taxa_ISO_R1.csv    (376,373 distribution rows, with occurrence_status)
+ *   - data/TDWG3_count_wcfp_ISO_R1.csv  (367 areas: codes, names, ISO, published counts,
+ *                                        flora_richness, pct_of_flora)
+ *   - data/wgsrpd-master/level3/level3.shp  (TDWG Level-3 geometries — geometry only)
  *
  * Output:
  *   - data/wcfp.duckdb
@@ -29,8 +34,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.join(__dirname, '..');
 
-const INPUT_XLSX = path.join(ROOT, 'data/3.WCFP.xlsx');
-const INPUT_CSV = path.join(ROOT, 'data/1.geo_distr_taxa.csv');
+const INPUT_XLSX = path.join(ROOT, 'data/WCFP.xlsx');
+const INPUT_CSV = path.join(ROOT, 'data/geo_distr_taxa_ISO_R1.csv');
+const INPUT_COUNTS = path.join(ROOT, 'data/TDWG3_count_wcfp_ISO_R1.csv');
 const INPUT_SHP = path.join(ROOT, 'data/wgsrpd-master/level3/level3.shp');
 const OUTPUT_DB = path.join(ROOT, 'data/wcfp.duckdb');
 const TAXONOMY_USE_KEYS = [
@@ -135,6 +141,7 @@ async function main() {
 	console.log('🦆 Building DuckDB database...\n');
 	console.log(`   XLSX:   ${INPUT_XLSX}`);
 	console.log(`   CSV:    ${INPUT_CSV}`);
+	console.log(`   COUNTS: ${INPUT_COUNTS}`);
 	console.log(`   SHP:    ${INPUT_SHP}`);
 	console.log(`   Output: ${OUTPUT_DB}\n`);
 
@@ -142,6 +149,7 @@ async function main() {
 	for (const [label, p] of [
 		['XLSX', INPUT_XLSX],
 		['CSV', INPUT_CSV],
+		['COUNTS', INPUT_COUNTS],
 		['SHP', INPUT_SHP]
 	]) {
 		if (!existsSync(p)) throw new Error(`Input file not found: ${label} → ${p}`);
@@ -199,9 +207,13 @@ async function main() {
 		conn,
 		`
 		CREATE TABLE distribution (
-			area    VARCHAR NOT NULL,
-			wcfp_id INTEGER NOT NULL REFERENCES species(wcfp_id),
-			PRIMARY KEY (area, wcfp_id)
+			code              VARCHAR NOT NULL,
+			wcfp_id           INTEGER NOT NULL REFERENCES species(wcfp_id),
+			occurrence_status VARCHAR NOT NULL,
+			introduced        BOOLEAN NOT NULL DEFAULT FALSE,
+			extinct           BOOLEAN NOT NULL DEFAULT FALSE,
+			location_doubtful BOOLEAN NOT NULL DEFAULT FALSE,
+			PRIMARY KEY (code, wcfp_id)
 		)
 	`
 	);
@@ -291,10 +303,14 @@ async function main() {
 	await run(
 		conn,
 		`
-		INSERT INTO distribution (area, wcfp_id)
+		INSERT INTO distribution (code, wcfp_id, occurrence_status, introduced, extinct, location_doubtful)
 		SELECT
-			TRIM(area)                              AS area,
-			TRY_CAST(WCFP_ID AS INTEGER)            AS wcfp_id
+			TRIM(area_code_l3)                      AS code,
+			TRY_CAST(WCFP_ID AS INTEGER)            AS wcfp_id,
+			TRIM(occurrence_status)                 AS occurrence_status,
+			COALESCE(introduced, 0) = 1             AS introduced,
+			COALESCE(extinct, 0) = 1                AS extinct,
+			COALESCE(location_doubtful, 0) = 1      AS location_doubtful
 		FROM read_csv_auto(
 			'${csvPathSql}',
 			delim=',',
@@ -302,40 +318,94 @@ async function main() {
 			header=true
 		)
 		WHERE TRY_CAST(WCFP_ID AS INTEGER) IS NOT NULL
-		  AND TRIM(area) != ''
+		  AND TRIM(area_code_l3) != ''
 		  AND TRY_CAST(WCFP_ID AS INTEGER) IN (SELECT wcfp_id FROM species)
 		ON CONFLICT DO NOTHING
 	`
 	);
 	const [{ dist_count }] = await exec(conn, `SELECT COUNT(*) AS dist_count FROM distribution`);
-	console.log(`   ${dist_count.toLocaleString()} distribution rows inserted ✓\n`);
+	console.log(`   ${dist_count.toLocaleString()} distribution rows inserted ✓`);
 
-	// ── Step 3: Create regions from shapefile ────────────────────────────────
-	console.log('🗺️  Loading regions from shapefile...');
+	// Every source row must survive. ON CONFLICT DO NOTHING and the wcfp_id membership test can
+	// both drop rows silently, and a partial distribution still produces a plausible database.
+	const [{ source_rows }] = await exec(
+		conn,
+		`SELECT COUNT(*) AS source_rows FROM read_csv_auto('${csvPathSql}', delim=',', quote='"', header=true)`
+	);
+	if (Number(dist_count) !== Number(source_rows)) {
+		throw new Error(
+			`INTEGRITY ERROR: distribution has ${dist_count} rows but the source CSV has ${source_rows}. ` +
+				`Rows were dropped by the wcfp_id membership test or a primary-key conflict.`
+		);
+	}
+	console.log(`   all ${source_rows.toLocaleString()} source rows accounted for ✓\n`);
+
+	// ── Step 3: Create regions from the published counts file + shapefile geometry ──
+	// The paper is the source of identity, names and reference figures; the shapefile
+	// contributes geometry only. Keyed by TDWG3 code — names are labels, not identifiers.
+	console.log('🗺️  Loading regions (paper identity + shapefile geometry)...');
 	const shpPathSql = INPUT_SHP.replace(/\\/g, '/').replace(/'/g, "''");
+	const countsPathSql = INPUT_COUNTS.replace(/\\/g, '/').replace(/'/g, "''");
+	await run(
+		conn,
+		`
+		CREATE TABLE shapefile_geom AS
+		SELECT LEVEL3_COD AS code, LEVEL3_NAM AS shapefile_name, geom
+		FROM ST_Read('${shpPathSql}')
+	`
+	);
+	const shpCols = (await exec(conn, `PRAGMA table_info(shapefile_geom)`)).map((c) => c.name);
+	for (const required of ['code', 'shapefile_name', 'geom']) {
+		if (!shpCols.includes(required)) {
+			throw new Error(
+				`Shapefile is missing expected column "${required}". Got: ${shpCols.join(', ')}`
+			);
+		}
+	}
+
 	await run(
 		conn,
 		`
 		CREATE TABLE regions AS
 		SELECT
-			LEVEL3_NAM AS area,
-			LEVEL3_COD AS code,
-			geom
-		FROM ST_Read('${shpPathSql}')
+			TRIM(c.area_code_l3)                        AS code,
+			TRIM(c.area)                                AS area,
+			COALESCE(TRIM(c.country), '')               AS country,
+			COALESCE(TRIM(c.ISO_alpha2), '')            AS iso_alpha2,
+			COALESCE(TRIM(c.ISO_alpha3), '')            AS iso_alpha3,
+			CAST(c.unique_count AS INTEGER)             AS unique_count_published,
+			CAST(c.Percentage AS DOUBLE)                AS percentage,
+			CAST(c.flora_richness AS INTEGER)           AS flora_richness,
+			CAST(c.pct_of_flora AS DOUBLE)              AS pct_of_flora,
+			g.geom                                      AS geom
+		FROM read_csv_auto('${countsPathSql}', delim=',', quote='"', header=true) c
+		JOIN shapefile_geom g ON g.code = TRIM(c.area_code_l3)
 	`
 	);
-	// Verify expected columns exist (guards against wrong shapefile version)
-	const shpCols = await exec(conn, `PRAGMA table_info(regions)`);
-	const colNames = shpCols.map((c) => c.name);
-	for (const required of ['area', 'code', 'geom']) {
-		if (!colNames.includes(required)) {
-			throw new Error(
-				`Shapefile is missing expected column "${required}". Got: ${colNames.join(', ')}`
-			);
-		}
-	}
+	await run(conn, `DROP TABLE shapefile_geom`);
+
+	// Every published area must have geometry. A code present in the paper but absent from the
+	// shapefile would vanish from the map with no error at all.
+	const [{ published_areas }] = await exec(
+		conn,
+		`SELECT COUNT(*) AS published_areas
+		 FROM read_csv_auto('${countsPathSql}', delim=',', quote='"', header=true)`
+	);
 	const [{ region_count }] = await exec(conn, `SELECT COUNT(*) AS region_count FROM regions`);
-	console.log(`   ${region_count.toLocaleString()} regions loaded ✓\n`);
+	if (Number(region_count) !== Number(published_areas)) {
+		throw new Error(
+			`INTEGRITY ERROR: ${published_areas} published areas but only ${region_count} matched a ` +
+				`shapefile geometry by TDWG3 code. Every published area must be mappable.`
+		);
+	}
+	const [{ dup_codes }] = await exec(
+		conn,
+		`SELECT COUNT(*) AS dup_codes FROM (SELECT code FROM regions GROUP BY code HAVING COUNT(*) > 1)`
+	);
+	if (Number(dup_codes) > 0) {
+		throw new Error(`INTEGRITY ERROR: ${dup_codes} duplicate TDWG3 code(s) in regions.`);
+	}
+	console.log(`   ${region_count.toLocaleString()} regions loaded, all with geometry ✓\n`);
 
 	// ── Step 4: Pre-aggregate region_stats ───────────────────────────────────
 	console.log('📈 Pre-aggregating region_stats...');
@@ -344,12 +414,12 @@ async function main() {
 		`
 		CREATE TABLE region_stats AS
 		SELECT
-			d.area,
+			d.code,
 			COUNT(DISTINCT d.wcfp_id) AS total_species,
 			COUNT(DISTINCT s.family)  AS family_count
 		FROM distribution d
 		JOIN species s USING (wcfp_id)
-		GROUP BY d.area
+		GROUP BY d.code
 	`
 	);
 	const [{ stats_count }] = await exec(conn, `SELECT COUNT(*) AS stats_count FROM region_stats`);
@@ -361,12 +431,12 @@ async function main() {
 		conn,
 		`
 		CREATE TABLE region_top_families AS
-		SELECT area, family, cnt,
-			   ROW_NUMBER() OVER (PARTITION BY area ORDER BY cnt DESC) AS rank
+		SELECT code, family, cnt,
+			   ROW_NUMBER() OVER (PARTITION BY code ORDER BY cnt DESC) AS rank
 		FROM (
-			SELECT d.area, s.family, COUNT(DISTINCT d.wcfp_id) AS cnt
+			SELECT d.code, s.family, COUNT(DISTINCT d.wcfp_id) AS cnt
 			FROM distribution d JOIN species s USING (wcfp_id)
-			GROUP BY d.area, s.family
+			GROUP BY d.code, s.family
 		) t
 		QUALIFY rank <= 10
 	`
@@ -380,13 +450,13 @@ async function main() {
 		`
 		CREATE TABLE region_family_taxonomy AS
 		SELECT
-			d.area,
+			d.code,
 			COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') AS family,
 			COUNT(DISTINCT d.wcfp_id) AS species_count,
 			COUNT(DISTINCT COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown')) AS genus_count
 		FROM distribution d
 		JOIN species s USING (wcfp_id)
-		GROUP BY d.area, family
+		GROUP BY d.code, family
 	`
 	);
 	await run(
@@ -394,13 +464,13 @@ async function main() {
 		`
 		CREATE TABLE region_genus_taxonomy AS
 		SELECT
-			d.area,
+			d.code,
 			COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') AS family,
 			COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown') AS genus,
 			COUNT(DISTINCT d.wcfp_id) AS species_count
 		FROM distribution d
 		JOIN species s USING (wcfp_id)
-		GROUP BY d.area, family, genus
+		GROUP BY d.code, family, genus
 	`
 	);
 	console.log('   region_family_taxonomy, region_genus_taxonomy ✓\n');
@@ -409,7 +479,7 @@ async function main() {
 	console.log('🌿 Building taxonomy runtime tables...');
 	const distributionAreaCountRows = await exec(
 		conn,
-		`SELECT wcfp_id, COUNT(DISTINCT area) AS distribution_area_count
+		`SELECT wcfp_id, COUNT(DISTINCT code) AS distribution_area_count
 		 FROM distribution
 		 GROUP BY wcfp_id`
 	);
@@ -604,7 +674,7 @@ async function main() {
 	// ── Step 8: Indexes ───────────────────────────────────────────────────────
 	console.log('🔍 Creating indexes...');
 	const indexes = [
-		`CREATE INDEX idx_dist_area    ON distribution(area)`,
+		`CREATE INDEX idx_dist_code    ON distribution(code)`,
 		`CREATE INDEX idx_dist_wcfp    ON distribution(wcfp_id)`,
 		`CREATE INDEX idx_spe_family   ON species(family)`,
 		`CREATE INDEX idx_spe_genus    ON species(genus)`,
@@ -614,9 +684,9 @@ async function main() {
 		`CREATE INDEX idx_spe_kingdom  ON species(kingdom)`,
 		`CREATE INDEX idx_spe_lifeform ON species(lifeform)`,
 		`CREATE INDEX idx_spe_cwr      ON species(cwr)`,
-		`CREATE INDEX idx_stats_area   ON region_stats(area)`,
-		`CREATE INDEX idx_region_family_area ON region_family_taxonomy(area, family)`,
-		`CREATE INDEX idx_region_genus_area_family ON region_genus_taxonomy(area, family, genus)`,
+		`CREATE INDEX idx_stats_code   ON region_stats(code)`,
+		`CREATE INDEX idx_region_family_code ON region_family_taxonomy(code, family)`,
+		`CREATE INDEX idx_region_genus_code_family ON region_genus_taxonomy(code, family, genus)`,
 		`CREATE INDEX idx_tax_nodes_parent_sort ON taxonomy_nodes(parent_id, sort_key)`,
 		`CREATE INDEX idx_tax_nodes_path ON taxonomy_nodes(path)`,
 		`CREATE INDEX idx_tax_nodes_name_lower ON taxonomy_nodes(name_lower)`,
@@ -641,28 +711,59 @@ async function main() {
 	console.log('   FTS indexes on species and taxonomy_nodes ✓\n');
 
 	// ── Step 10: Build-time verification ─────────────────────────────────────
+	//
+	// The check that matters: every area's computed count must equal the figure published in
+	// the paper. Comparing region_stats against distribution instead — as this step used to —
+	// is a tautology, since both are derived from the same CSV column.
 	console.log('✅ Running build-time integrity checks...');
-	const checkRegions = await exec(conn, `SELECT area FROM region_stats ORDER BY RANDOM() LIMIT 3`);
-	for (const { area } of checkRegions) {
-		const [{ pre }] = await exec(
-			conn,
-			`SELECT total_species AS pre FROM region_stats WHERE area = ?`,
-			[area]
+
+	const mismatches = await exec(
+		conn,
+		`SELECT r.code, r.area, r.unique_count_published AS published,
+		        COALESCE(rs.total_species, 0)           AS computed
+		 FROM regions r
+		 LEFT JOIN region_stats rs USING (code)
+		 WHERE COALESCE(rs.total_species, 0) != r.unique_count_published
+		 ORDER BY r.code`
+	);
+	if (mismatches.length > 0) {
+		const detail = mismatches
+			.map((m) => `      ${m.code} ${m.area}: computed ${m.computed}, published ${m.published}`)
+			.join('\n');
+		throw new Error(
+			`INTEGRITY ERROR: ${mismatches.length} of ${region_count} areas do not match the ` +
+				`published counts.\n${detail}\n` +
+				`The portal must not display figures that disagree with the paper.`
 		);
-		const [{ live }] = await exec(
-			conn,
-			`SELECT COUNT(DISTINCT d.wcfp_id) AS live
-			 FROM distribution d JOIN species s USING (wcfp_id)
-			 WHERE d.area = ?`,
-			[area]
-		);
-		if (Number(pre) !== Number(live)) {
-			throw new Error(
-				`INTEGRITY ERROR: region_stats.total_species (${pre}) ≠ live count (${live}) for area "${area}"`
-			);
-		}
-		console.log(`   ${area}: pre=${pre} live=${live} ✓`);
 	}
+	console.log(`   all ${region_count} areas match the published counts exactly ✓`);
+
+	// Every area with published data must have stats; every stats row must be a known region.
+	const [{ orphan_stats }] = await exec(
+		conn,
+		`SELECT COUNT(*) AS orphan_stats FROM region_stats rs
+		 WHERE rs.code NOT IN (SELECT code FROM regions)`
+	);
+	if (Number(orphan_stats) > 0) {
+		throw new Error(
+			`INTEGRITY ERROR: ${orphan_stats} region_stats row(s) reference an unknown TDWG3 code.`
+		);
+	}
+	console.log('   no orphaned region_stats rows ✓');
+
+	// The taxonomy root is seeded from a counter of *attempted* inserts; assert it against the
+	// table it claims to summarise.
+	const [{ root_count }] = await exec(
+		conn,
+		`SELECT count AS root_count FROM taxonomy_nodes WHERE rank = 'root'`
+	);
+	const [{ species_total }] = await exec(conn, `SELECT COUNT(*) AS species_total FROM species`);
+	if (Number(root_count) !== Number(species_total)) {
+		throw new Error(
+			`INTEGRITY ERROR: taxonomy root count (${root_count}) ≠ species rows (${species_total}).`
+		);
+	}
+	console.log(`   taxonomy root count = ${Number(root_count).toLocaleString()} species ✓`);
 
 	// ── Summary ───────────────────────────────────────────────────────────────
 	const [summary] = await exec(

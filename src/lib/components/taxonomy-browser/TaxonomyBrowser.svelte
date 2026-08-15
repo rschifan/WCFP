@@ -102,6 +102,23 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white {className}">
+	<!-- Outside the loading branch on purpose: picking a filter reloads the tree, and unmounting
+	     the bar with it would throw away its expanded/collapsed state mid-interaction. -->
+	{#if bootstrapState.status !== 'error'}
+		<TaxonomySearchFilterBar
+			{searchPlaceholder}
+			{searchQuery}
+			onSearchChange={controller.searchInput.setQuery}
+			onClearSearch={controller.searchInput.clear}
+			{searchStatus}
+			searchError={searchError}
+			{filters}
+			{availableLifeforms}
+			{showGeographicFilter}
+			onFilterChange={controller.setFilters}
+		/>
+	{/if}
+
 	{#if bootstrapState.status === 'loading' || bootstrapState.status === 'idle'}
 		<div class="relative flex-1 bg-white">
 			<div
@@ -131,19 +148,6 @@
 			</div>
 		</div>
 	{:else if activeData && startFromId}
-		<TaxonomySearchFilterBar
-			{searchPlaceholder}
-			{searchQuery}
-			onSearchChange={controller.searchInput.setQuery}
-			onClearSearch={controller.searchInput.clear}
-			{searchStatus}
-			searchError={searchError}
-			{filters}
-			{availableLifeforms}
-			{showGeographicFilter}
-			onFilterChange={controller.setFilters}
-		/>
-
 		{#if hasNoResults}
 			<div class="flex flex-1 items-center justify-center px-6 text-sm text-slate-500">
 				{emptyMessage}

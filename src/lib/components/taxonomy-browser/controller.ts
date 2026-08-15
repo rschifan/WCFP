@@ -123,11 +123,24 @@ export function createTaxonomyBrowserController(
 	}
 
 	async function initialize(source: TaxonomyBrowserSource) {
+		// Same subject, narrower scope (e.g. an occurrence status): reload the tree underneath the
+		// user rather than blanking the panel — search text, filters and scroll position stay put.
+		const narrowing =
+			currentSource?.key !== undefined &&
+			currentSource.key === source.key &&
+			currentSource.scopeKey !== source.scopeKey;
+
 		currentVersion += 1;
 		const version = currentVersion;
 		currentSource = source;
-		resetRuntime();
-		bootstrapStateStore.set({ status: 'loading' });
+
+		if (narrowing) {
+			abortBootstrap();
+			abortChildren();
+		} else {
+			resetRuntime();
+			bootstrapStateStore.set({ status: 'loading' });
+		}
 
 		const controller = new AbortController();
 		bootstrapAbortController = controller;
@@ -171,7 +184,7 @@ export function createTaxonomyBrowserController(
 			}
 
 			return {
-				requestKey: serializeTaxonomyBrowserQuery(query),
+				requestKey: `${currentSource.scopeKey ?? ''}|${serializeTaxonomyBrowserQuery(query)}`,
 				query
 			};
 		}

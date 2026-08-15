@@ -15,6 +15,10 @@ export interface TaxonomyBrowserQuery {
 }
 
 export interface TaxonomyBrowserSource {
+	/** Identity of the scope. A change means a different subject: reset everything. */
+	key?: string;
+	/** A narrowing of the same scope. A change reloads the tree but keeps the view in place. */
+	scopeKey?: string;
 	loadBootstrap: (signal?: AbortSignal) => Promise<TaxonomyBootstrapPayload>;
 	loadChildren: (parentId: string, signal?: AbortSignal) => Promise<TaxonomyChildrenPayload>;
 	query: (query: TaxonomyBrowserQuery, signal?: AbortSignal) => Promise<TaxonomyQueryPayload>;

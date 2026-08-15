@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { X } from 'lucide-svelte';
 	import type { MultiSelectSectionModel } from '$lib/types/filters';
 
 	interface Props {
@@ -7,10 +8,18 @@
 
 	let { section }: Props = $props();
 
+	const selected = $derived(section.options.filter((option) => option.selected));
+
 	function handleChange(event: Event) {
 		const select = event.currentTarget as HTMLSelectElement;
 		const selectedIds = Array.from(select.selectedOptions).map((option) => option.value);
 		section.onChange(selectedIds);
+	}
+
+	// Deselecting in a multi-select needs a Ctrl/Cmd-click nobody discovers, so each choice also
+	// gets a chip that removes it.
+	function remove(id: string) {
+		section.onChange(selected.filter((option) => option.id !== id).map((option) => option.id));
 	}
 </script>
 
@@ -31,6 +40,21 @@
 			</option>
 		{/each}
 	</select>
+	{#if selected.length > 0}
+		<div class="mt-2 flex flex-wrap gap-1.5">
+			{#each selected as option (option.id)}
+				<button
+					type="button"
+					onclick={() => remove(option.id)}
+					class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+					aria-label="Remove {option.label} filter"
+				>
+					{option.label}
+					<X class="h-3 w-3" />
+				</button>
+			{/each}
+		</div>
+	{/if}
 	{#if section.helpText}
 		<p class="mt-1 text-xs text-slate-400">{section.helpText}</p>
 	{/if}

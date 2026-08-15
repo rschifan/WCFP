@@ -71,10 +71,14 @@ export function createRegionTaxonomySource(
 	status?: string | null
 ): TaxonomyBrowserSource {
 	const suffix = status ? `?status=${encodeURIComponent(status)}` : '';
-	return createApiTaxonomySource(
-		`${base}/api/v1/regions/${encodeURIComponent(regionCode)}/taxonomy`,
-		suffix
-	);
+	return {
+		key: regionCode,
+		scopeKey: status ?? '',
+		...createApiTaxonomySource(
+			`${base}/api/v1/regions/${encodeURIComponent(regionCode)}/taxonomy`,
+			suffix
+		)
+	};
 }
 
 export type { TaxonomyBrowserQuery };

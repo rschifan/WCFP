@@ -28,13 +28,6 @@
 
 	interface Props {
 		regionName: string | null;
-		/**
-		 * Active occurrence filter. The tree itself is filtered, so the headline count is already
-		 * the filtered one; `regionTotal` gives the unfiltered figure for context.
-		 */
-		occurrence?: { status: string; regionTotal: number } | null;
-		/** Occurrence facet rendered in the panel — the filter rail for a selected region. */
-		facetSlot?: import('svelte').Snippet;
 		isMobile?: boolean;
 		browserSource: TaxonomyBrowserSource | null;
 		onClose?: () => void;
@@ -42,8 +35,6 @@
 
 	let {
 		regionName,
-		occurrence = null,
-		facetSlot,
 		isMobile: _isMobile = false,
 		browserSource,
 		onClose
@@ -124,13 +115,8 @@
 								{formatCount(totalSpeciesCount)} taxa found
 							{/if}
 						</p>
-						{#if occurrence}
-							<p class="mt-0.5 text-xs text-slate-500">
-								of {formatCount(occurrence.regionTotal)} recorded in this region
-							</p>
 						{/if}
-					{/if}
-				</div>
+					</div>
 
 				{#if onClose}
 					<button
@@ -143,12 +129,6 @@
 					</button>
 				{/if}
 			</div>
-
-			{#if facetSlot}
-				<div class="border-t border-slate-100 px-4 py-3">
-					{@render facetSlot()}
-				</div>
-			{/if}
 		</div>
 
 		<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">

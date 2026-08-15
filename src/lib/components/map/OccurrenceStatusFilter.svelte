@@ -22,29 +22,24 @@
 	];
 </script>
 
-<div class="flex flex-col gap-1">
-	<span id="occurrence-filter-label" class="text-[11px] font-medium text-slate-500">
-		Occurrence
-	</span>
-	<div
-		class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5"
-		role="radiogroup"
-		aria-labelledby="occurrence-filter-label"
-		aria-busy={loading}
-	>
-		{#each options as option (option.id)}
-			<button
-				type="button"
-				role="radio"
-				aria-checked={value === option.id}
-				title={option.hint}
-				onclick={() => onChange(option.id)}
-				class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors {value === option.id
-					? 'bg-white text-slate-900 shadow-sm'
-					: 'text-slate-600 hover:text-slate-900'}"
-			>
-				{option.label}
-			</button>
-		{/each}
-	</div>
+<div
+	class="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+	role="radiogroup"
+	aria-label="Filter map by occurrence status"
+	aria-busy={loading}
+>
+	{#each options as option (option.id)}
+		<button
+			type="button"
+			role="radio"
+			aria-checked={value === option.id}
+			title={option.hint}
+			onclick={() => onChange(option.id)}
+			class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors {value === option.id
+				? 'bg-white text-slate-900 shadow-sm'
+				: 'text-slate-600 hover:text-slate-900'}"
+		>
+			{option.label}
+		</button>
+	{/each}
 </div>

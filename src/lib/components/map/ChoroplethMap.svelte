@@ -431,13 +431,17 @@
 
 	$effect(() => {
 		if (!svgEl || !autoFitBounds) return;
-		const featuresWithData = enriched.geoJSON.features.filter((f) => f.properties?.has_data);
-		if (featuresWithData.length === 0) {
+		// Fit to the whole geography, not to whichever features currently carry data. A filter
+		// changes only the colouring, so refitting on the data-bearing subset made the map jump
+		// a few pixels whenever the filtered set covered a different bounding box — switching to
+		// "introduced" drops two areas, which was enough to shift the whole projection.
+		const features = geoJSON.features;
+		if (features.length === 0) {
 			select(svgEl).call(zoomBehavior.transform, zoomIdentity);
 			mapReady = true;
 			return;
 		}
-		fitToFeatures(featuresWithData);
+		fitToFeatures(features);
 		mapReady = true;
 	});
 

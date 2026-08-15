@@ -112,7 +112,7 @@
 					Distribution of edible plant taxa across 367 botanical regions.
 				</p>
 			</div>
-			<div class="flex shrink-0 flex-wrap items-end gap-4">
+			<div class="flex shrink-0 flex-wrap items-center gap-3">
 				<OccurrenceStatusFilter
 					value={occurrenceStatus}
 					onChange={(next) => (occurrenceStatus = next)}

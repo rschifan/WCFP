@@ -23,15 +23,15 @@
 	}
 </script>
 
-<div class="filter-group">
-	<label for={section.selectId} class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+<div>
+	<label for={section.selectId} class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
 		{section.title}
 	</label>
 	<select
 		id={section.selectId}
 		multiple
-		class="app-input-accent mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
-		style="height: auto; max-height: 120px;"
+		class="app-input-accent mt-1.5 w-full rounded-sm border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+		style="height: auto; max-height: 68px;"
 		onchange={handleChange}
 	>
 		{#each section.options as option (option.id)}
@@ -41,7 +41,7 @@
 		{/each}
 	</select>
 	{#if selected.length > 0}
-		<div class="mt-2 flex flex-wrap gap-1.5">
+		<div class="mt-1.5 flex flex-wrap gap-1">
 			{#each selected as option (option.id)}
 				<button
 					type="button"
@@ -56,6 +56,6 @@
 		</div>
 	{/if}
 	{#if section.helpText}
-		<p class="mt-1 text-xs text-slate-400">{section.helpText}</p>
+		<p class="mt-1 text-[11px] text-slate-400">{section.helpText}</p>
 	{/if}
 </div>

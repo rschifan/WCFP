@@ -9,7 +9,7 @@
 	let { chips }: Props = $props();
 </script>
 
-<div class="flex flex-wrap gap-1.5 border-t border-slate-100 px-4 py-2">
+<div class="flex flex-wrap gap-1 border-t border-slate-100 px-3 py-1.5">
 	{#each chips as chip (chip.id)}
 		<button
 			type="button"

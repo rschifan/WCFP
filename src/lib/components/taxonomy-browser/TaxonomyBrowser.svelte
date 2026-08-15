@@ -153,7 +153,7 @@
 				{emptyMessage}
 			</div>
 		{:else}
-			<div class="min-h-0 flex-1 overflow-y-auto">
+			<div class="min-h-0 flex-1 overflow-hidden">
 				<TaxonomyList
 					data={activeData}
 					{startFromId}
@@ -167,7 +167,6 @@
 					{getNodeBadges}
 					{getSpeciesDetailSource}
 					highlightQuery={searchQuery}
-					class="h-full w-full"
 				/>
 			</div>
 		{/if}

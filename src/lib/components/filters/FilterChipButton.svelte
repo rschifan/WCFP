@@ -17,7 +17,7 @@
 
 <button
 	type="button"
-	class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium transition-colors {option.label
+	class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium transition-colors {option.label
 		? 'gap-1'
 		: 'justify-center'} {buttonClass}"
 	onclick={onClick}

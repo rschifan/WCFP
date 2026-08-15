@@ -10,14 +10,12 @@
 		regionCode: string | null;
 		/** Display label for the heading. */
 		regionName: string | null;
-		isMobile?: boolean;
 		onClose?: () => void;
 	}
 
 	let {
 		regionCode,
 		regionName,
-		isMobile = false,
 		onClose
 	}: Props = $props();
 
@@ -29,4 +27,4 @@
 	});
 </script>
 
-<SpeciesPanelView {regionName} {isMobile} {browserSource} {onClose} />
+<SpeciesPanelView {regionName} {browserSource} {onClose} />

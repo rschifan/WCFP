@@ -206,6 +206,6 @@
 	);
 </script>
 
-<div class="shrink-0 overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+<div class="flex max-h-[55%] min-h-0 shrink flex-col overflow-hidden border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
 	<FilterBar {model} />
 </div>

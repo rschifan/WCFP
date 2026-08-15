@@ -182,22 +182,18 @@ describe('SpeciesPanel shared search state', () => {
 		target = null;
 	});
 
-	it.each([
-		{ isMobile: false, label: 'desktop' },
-		{ isMobile: true, label: 'mobile' }
-	])('resets the shared search input when the region changes on $label', async ({ isMobile }) => {
+	it('resets the shared search input when the region changes', async () => {
 		expect.assertions(3);
 
 		const view = render(SpeciesPanelHarness, {
 			target: target ?? document.body,
 			props: {
 				regionCode: 'RGA',
-				regionName: 'Region A',
-				isMobile
+				regionName: 'Region A'
 			}
 		});
 
-		const searchInput = page.getByPlaceholder('Search families, genera, or species...');
+		const searchInput = page.getByPlaceholder('Search');
 		await expect.element(searchInput).toBeInTheDocument();
 
 		await searchInput.fill('hydro');
@@ -205,8 +201,7 @@ describe('SpeciesPanel shared search state', () => {
 
 		await view.rerender({
 			regionCode: 'RGB',
-			regionName: 'Region B',
-			isMobile
+			regionName: 'Region B'
 		});
 
 		await expect.element(searchInput).toHaveValue('');
@@ -219,8 +214,7 @@ describe('SpeciesPanel shared search state', () => {
 			target: target ?? document.body,
 			props: {
 				regionCode: 'RGA',
-				regionName: 'Region A',
-				isMobile: false
+				regionName: 'Region A'
 			}
 		});
 

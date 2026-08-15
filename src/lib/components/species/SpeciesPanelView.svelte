@@ -28,14 +28,12 @@
 
 	interface Props {
 		regionName: string | null;
-		isMobile?: boolean;
 		browserSource: TaxonomyBrowserSource | null;
 		onClose?: () => void;
 	}
 
 	let {
 		regionName,
-		isMobile: _isMobile = false,
 		browserSource,
 		onClose
 	}: Props = $props();
@@ -102,36 +100,35 @@
 		aria-label="Species panel"
 		transition:panelTransition
 	>
-		<div class="shrink-0 border-b border-slate-200 bg-gradient-to-b from-slate-50 via-white to-slate-50/50">
-			<div class="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
-				<div class="min-w-0 flex-1">
-					<p class="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Region</p>
-					<h2 class="mt-1 truncate text-lg font-semibold text-slate-900">{regionName}</h2>
+		<div class="shrink-0 border-b border-slate-200 bg-white">
+			<div class="flex items-baseline justify-between gap-3 px-4 py-2.5">
+				<h2 class="min-w-0 flex-1 truncate text-base font-semibold text-slate-900">
+					{regionName}
 					{#if totalSpeciesCount > 0}
-						<p class="mt-1 text-sm text-slate-600">
+						<span class="ml-1 text-sm font-normal text-slate-500">
 							{#if browserSummary.hasActiveQuery && visibleSpeciesCount !== totalSpeciesCount}
-								<span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span> of {formatCount(totalSpeciesCount)} taxa
+								· <span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span> of {formatCount(totalSpeciesCount)} taxa
 							{:else}
-								{formatCount(totalSpeciesCount)} taxa found
+								· {formatCount(totalSpeciesCount)} taxa
 							{/if}
-						</p>
-						{/if}
-					</div>
+						</span>
+					{/if}
+				</h2>
 
 				{#if onClose}
 					<button
 						type="button"
 						onclick={onClose}
-						class="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+						class="-mr-1 shrink-0 self-center rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
 						aria-label="Close panel"
 					>
-						<X class="h-5 w-5" />
+						<X class="h-4 w-4" />
 					</button>
 				{/if}
 			</div>
 		</div>
 
-		<div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+		<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 			{#if browserSource}
 				<TaxonomyBrowser
 					source={browserSource}
@@ -142,7 +139,6 @@
 					getNodeBadges={getNodeBadges}
 					getSpeciesDetailSource={getSpeciesDetailSource}
 					onSummaryChange={handleBrowserSummaryChange}
-					class="h-full w-full"
 				/>
 			{:else}
 				{@render emptyState()}

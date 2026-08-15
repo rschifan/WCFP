@@ -112,17 +112,22 @@ export interface TaxonomyTreeIndex {
 /**
  * Active filters for taxonomy browsing.
  */
+export type OccurrenceStatusFilter = 'native' | 'introduced' | 'extinct' | 'doubtful';
+
 export interface TaxonomyFilters {
 	geographicOnly: boolean;
 	lifeforms: Set<string>;
 	uses: Set<SpeciesUseKey>;
+	/** Region-scoped only: restrict to taxa with this occurrence status. */
+	occurrenceStatus: OccurrenceStatusFilter | null;
 }
 
 export function createEmptyTaxonomyFilters(): TaxonomyFilters {
 	return {
 		geographicOnly: false,
 		lifeforms: new Set(),
-		uses: new Set()
+		uses: new Set(),
+		occurrenceStatus: null
 	};
 }
 

@@ -66,7 +66,8 @@ export function hasTaxonomyBrowserQuery(query: TaxonomyBrowserQuery): boolean {
 		query.q.trim().length > 0 ||
 		query.filters.geographicOnly ||
 		query.filters.lifeforms.size > 0 ||
-		query.filters.uses.size > 0
+		query.filters.uses.size > 0 ||
+		query.filters.occurrenceStatus !== null
 	);
 }
 
@@ -90,6 +91,10 @@ export function serializeTaxonomyBrowserQuery(query: TaxonomyBrowserQuery): stri
 
 	for (const useKey of uses) {
 		params.append('use', useKey);
+	}
+
+	if (query.filters.occurrenceStatus) {
+		params.set('status', query.filters.occurrenceStatus);
 	}
 
 	return params.toString();

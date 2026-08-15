@@ -1,13 +1,16 @@
 import { borrowConnection, releaseConnection, resetDatabase } from './database.js';
 import {
 	getRegionStats,
+	getStatusFacets,
 	getRegionTaxonomyAvailableLifeforms,
 	getRegionTaxonomyFamilyRows,
 	getRegionTaxonomyGenusRows,
+	getRegionTaxonomyGenusRowsByStatus,
 	getRegionTaxonomySpeciesRows,
 	queryRegionTaxonomyMatchedFamilies,
 	queryRegionTaxonomyMatchedGenera,
 	queryRegionTaxonomyMatchedSpecies,
+	type OccurrenceStatus,
 	type RegionTaxonomyFamilyRow,
 	type RegionTaxonomyGenusRow,
 	type SpeciesRow
@@ -317,18 +320,24 @@ async function getRegionMeta(code: string): Promise<RegionTaxonomyMeta> {
 	return promise;
 }
 
-async function loadRegionBootstrap(code: string): Promise<TaxonomyBootstrapPayload> {
+async function loadRegionBootstrap(
+	code: string,
+	status: OccurrenceStatus | null = null
+): Promise<TaxonomyBootstrapPayload> {
 	return withRegionTaxonomySchemaRecovery(async () => {
 		const conn = borrowConnection();
 
 		try {
-			const [meta, stats, familyRows] = await Promise.all([
+			const [meta, stats, familyRows, facets] = await Promise.all([
 				getRegionMeta(code),
 				getRegionStats(conn, code),
-				getRegionTaxonomyFamilyRows(conn, code)
+				getRegionTaxonomyFamilyRows(conn, code, status),
+				status ? getStatusFacets(conn, code) : Promise.resolve(null)
 			]);
 
-			const totalSpeciesCount = stats?.total_species ?? 0;
+			const totalSpeciesCount = facets
+				? (facets.find((f) => f.occurrence_status === status)?.count ?? 0)
+				: (stats?.total_species ?? 0);
 			const rootNode = createRootNode(totalSpeciesCount, familyRows.length);
 			const familyNodes = familyRows.map((row) => createFamilyNode(row));
 			const nodes = finalizeProjectedNodes([rootNode, ...familyNodes]);
@@ -346,35 +355,41 @@ async function loadRegionBootstrap(code: string): Promise<TaxonomyBootstrapPaylo
 	});
 }
 
-export async function getRegionTaxonomyBootstrap(code: string): Promise<TaxonomyBootstrapPayload> {
-	const cached = bootstrapCache.get(code);
+export async function getRegionTaxonomyBootstrap(
+	code: string,
+	status: OccurrenceStatus | null = null
+): Promise<TaxonomyBootstrapPayload> {
+	// Cache per (region, status) — the unfiltered payload is not a valid answer for a filter.
+	const key = status ? `${code}::${status}` : code;
+	const cached = bootstrapCache.get(key);
 	if (cached) {
 		return cached;
 	}
 
-	const inflight = bootstrapPromiseCache.get(code);
+	const inflight = bootstrapPromiseCache.get(key);
 	if (inflight) {
 		return inflight;
 	}
 
-	const promise = loadRegionBootstrap(code)
+	const promise = loadRegionBootstrap(code, status)
 		.then((payload) => {
-			bootstrapCache.set(code, payload);
+			bootstrapCache.set(key, payload);
 			return payload;
 		})
 		.finally(() => {
-			bootstrapPromiseCache.delete(code);
+			bootstrapPromiseCache.delete(key);
 		});
 
-	bootstrapPromiseCache.set(code, promise);
+	bootstrapPromiseCache.set(key, promise);
 	return promise;
 }
 
 export async function getRegionTaxonomyChildren(
 	code: string,
-	parentId: string
+	parentId: string,
+	status: OccurrenceStatus | null = null
 ): Promise<TaxonomyChildrenPayload> {
-	const key = `${code}::${parentId}`;
+	const key = status ? `${code}::${status}::${parentId}` : `${code}::${parentId}`;
 	const inflight = childrenInflight.get(key);
 	if (inflight) {
 		return inflight;
@@ -390,7 +405,7 @@ export async function getRegionTaxonomyChildren(
 			}
 
 			if (parent.rank === 'root') {
-				const familyRows = await getRegionTaxonomyFamilyRows(conn, code);
+				const familyRows = await getRegionTaxonomyFamilyRows(conn, code, status);
 				return {
 					parentId,
 					nodes: familyRows.map((row) => createFamilyNode(row))
@@ -398,14 +413,22 @@ export async function getRegionTaxonomyChildren(
 			}
 
 			if (parent.rank === 'family') {
-				const genusRows = await getRegionTaxonomyGenusRows(conn, code, parent.family);
+				const genusRows = status
+					? await getRegionTaxonomyGenusRowsByStatus(conn, code, parent.family, status)
+					: await getRegionTaxonomyGenusRows(conn, code, parent.family);
 				return {
 					parentId,
 					nodes: genusRows.map((row) => createGenusNode(row))
 				};
 			}
 
-			const speciesRows = await getRegionTaxonomySpeciesRows(conn, code, parent.family, parent.genus);
+			const speciesRows = await getRegionTaxonomySpeciesRows(
+				conn,
+				code,
+				parent.family,
+				parent.genus,
+				status
+			);
 			return {
 				parentId,
 				nodes: speciesRows.map((row) => createSpeciesNode(row))
@@ -428,21 +451,35 @@ export async function queryRegionTaxonomy(
 		geographicOnly?: boolean;
 		lifeforms?: string[];
 		uses?: SpeciesUseKey[];
+		occurrenceStatus?: OccurrenceStatus | null;
 	}
 ): Promise<TaxonomyQueryPayload> {
 	return withRegionTaxonomySchemaRecovery(async () => {
 		const conn = borrowConnection();
 
 		try {
-			const [meta, stats] = await Promise.all([getRegionMeta(code), getRegionStats(conn, code)]);
-			const totalSpeciesCount = stats?.total_species ?? 0;
-			const rootNode = createRootNode(totalSpeciesCount, stats?.family_count ?? 0);
+			const [meta, stats, facets] = await Promise.all([
+				getRegionMeta(code),
+				getRegionStats(conn, code),
+				params.occurrenceStatus ? getStatusFacets(conn, code) : Promise.resolve(null)
+			]);
+			const scopedCount = facets
+				? (facets.find((f) => f.occurrence_status === params.occurrenceStatus)?.count ?? 0)
+				: (stats?.total_species ?? 0);
+			const rootNode = createRootNode(scopedCount, stats?.family_count ?? 0);
 			const searchQuery = params.q?.trim() ?? '';
 			const hasTraitFilters =
 				Boolean(params.geographicOnly) ||
 				Boolean(params.lifeforms?.length) ||
-				Boolean(params.uses?.length);
-			const familyRows = await getRegionTaxonomyFamilyRows(conn, code);
+				Boolean(params.uses?.length) ||
+				Boolean(params.occurrenceStatus);
+			// Family counts must reflect the filter too, or the tree sits under a header that
+			// counts taxa it is not showing.
+			const familyRows = await getRegionTaxonomyFamilyRows(
+				conn,
+				code,
+				params.occurrenceStatus ?? null
+			);
 			const familyByName = new Map(
 				familyRows.map((row) => [normalizeTaxonomyValue(row.family), row] as const)
 			);

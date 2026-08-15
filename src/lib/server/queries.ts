@@ -497,10 +497,16 @@ export async function queryRegionTaxonomyMatchedSpecies(
 		lifeforms?: string[];
 		uses?: SpeciesUseKey[];
 		includeTaxonomyNameMatches?: boolean;
+		occurrenceStatus?: OccurrenceStatus | null;
 	}
 ): Promise<SpeciesRow[]> {
 	const conditions: string[] = ['d.code = ?'];
 	const queryParams: unknown[] = [code];
+
+	if (params.occurrenceStatus) {
+		conditions.push('d.occurrence_status = ?');
+		queryParams.push(params.occurrenceStatus);
+	}
 	const searchQuery = params.q?.trim().toLowerCase() ?? '';
 
 	if (params.lifeforms?.length) {
@@ -540,7 +546,8 @@ export async function queryRegionTaxonomyMatchedSpecies(
 				s.lifeform, s.cwr, s.use_human_food,
 				s.use_animal_food, s.use_environmental, s.use_fuels, s.use_gene_sources,
 				s.use_invertebrate_food, s.use_materials, s.use_medicines,
-				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total
+				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total,
+				d.occurrence_status
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
 		 WHERE ${conditions.join(' AND ')}

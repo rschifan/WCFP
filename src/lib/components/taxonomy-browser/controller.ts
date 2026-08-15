@@ -281,7 +281,8 @@ export function createTaxonomyBrowserController(
 			$debouncedQuery.trim().length > 0 ||
 			$filters.geographicOnly ||
 			$filters.lifeforms.size > 0 ||
-			$filters.uses.size > 0
+			$filters.uses.size > 0 ||
+			$filters.occurrenceStatus !== null
 	);
 
 	const activeDataStore = derived(

@@ -3,7 +3,7 @@
 	 * What the choropleth is coloured by. A map-level control, deliberately separate from the
 	 * filters in the region panel: this changes the world view, those narrow one region's list.
 	 */
-	export type MapMode = 'all' | 'native' | 'introduced' | 'extinct' | 'doubtful' | 'pct';
+	export type MapMode = 'all' | 'native' | 'introduced' | 'extinct' | 'pct';
 
 	interface Props {
 		value: MapMode;
@@ -18,13 +18,12 @@
 		{ id: 'all', label: 'All' },
 		{ id: 'native', label: 'Native' },
 		{ id: 'introduced', label: 'Introduced' },
-		{ id: 'extinct', label: 'Extinct' },
-		{ id: 'doubtful', label: 'Doubtful' }
+		{ id: 'extinct', label: 'Extinct' }
 	];
 </script>
 
 <div
-	class="flex flex-wrap items-center gap-x-1 gap-y-2 border-b border-slate-200 bg-white px-6 py-2"
+	class="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 border-b border-slate-200 bg-white px-6 py-2"
 	role="radiogroup"
 	aria-label="Colour the map by"
 	aria-busy={loading}

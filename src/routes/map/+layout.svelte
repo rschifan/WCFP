@@ -142,10 +142,6 @@
 		<TopBar />
 	</header>
 
-	<div class="shrink-0">
-		<MapModeBar value={mapMode} onChange={(next) => (mapMode = next)} loading={loadingCounts} />
-	</div>
-
 	<section class="shrink-0 border-b border-slate-200 bg-white px-6 py-4">
 		<div class="flex flex-wrap items-center justify-between gap-4">
 			<div class="min-w-0">
@@ -162,22 +158,26 @@
 	</section>
 
 	<main class="flex min-h-0 flex-1 overflow-hidden bg-slate-100 md:flex-row-reverse">
-		<div class="relative h-full min-w-0 flex-1">
-			{#if geoJSON}
-				<ChoroplethMap
-					geoJSON={geoJSON as FeatureCollection}
-					{distributionData}
-					{selectedRegion}
-					{previewRegion}
-					onRegionClick={handleSelectRegion}
-					legendTitle={mapMode === 'pct' ? 'Share' : 'Count'}
-					{legendSubtitle}
-					{formatValue}
-					valueLabel={mapMode === 'pct' ? 'Share of flora' : 'Taxa'}
-					zeroIsData={mapMode === 'pct'}
-					legendPosition="bottom-left"
-				/>
-			{/if}
+		<!-- The bar belongs to the map, so it spans the map column only — not the panel beside it. -->
+		<div class="flex h-full min-w-0 flex-1 flex-col">
+			<MapModeBar value={mapMode} onChange={(next) => (mapMode = next)} loading={loadingCounts} />
+			<div class="relative min-h-0 flex-1">
+				{#if geoJSON}
+					<ChoroplethMap
+						geoJSON={geoJSON as FeatureCollection}
+						{distributionData}
+						{selectedRegion}
+						{previewRegion}
+						onRegionClick={handleSelectRegion}
+						legendTitle={mapMode === 'pct' ? 'Share' : 'Count'}
+						{legendSubtitle}
+						{formatValue}
+						valueLabel={mapMode === 'pct' ? 'Share of flora' : 'Taxa'}
+						zeroIsData={mapMode === 'pct'}
+						legendPosition="bottom-left"
+					/>
+				{/if}
+			</div>
 		</div>
 
 		{@render children()}

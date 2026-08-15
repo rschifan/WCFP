@@ -3,6 +3,8 @@
  */
 
 export { default as ChoroplethMap } from './ChoroplethMap.svelte';
+export { default as OccurrenceStatusFilter } from './OccurrenceStatusFilter.svelte';
+export type { OccurrenceFilterValue } from './OccurrenceStatusFilter.svelte';
 export { default as RegionSearchBox } from './RegionSearchBox.svelte';
 export { default as TaxonomyOverlayView } from './TaxonomyOverlayView.svelte';
 export { default as TaxonomyPanel } from './TaxonomyPanel.svelte';

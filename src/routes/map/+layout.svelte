@@ -6,8 +6,14 @@
 	import type { FeatureCollection } from 'geojson';
 	import TopBar from '$lib/components/layout/TopBar.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
-	import { ChoroplethMap, RegionSearchBox } from '$lib/components/map';
+	import {
+		ChoroplethMap,
+		OccurrenceStatusFilter,
+		RegionSearchBox,
+		type OccurrenceFilterValue
+	} from '$lib/components/map';
 	import { regionGeometryStore, type RegionFeatureCollection } from '$lib/stores/region-geometry';
+	import { setOccurrenceFilter } from '$lib/stores/occurrence-filter';
 	import { createSpeciesProvider, setSpeciesProvider } from '$lib/services/species';
 	import {
 		createSpatialDistributionService,
@@ -40,6 +46,57 @@
 	function handlePreviewRegion(code: string | null) {
 		previewRegion = code;
 	}
+
+	// ── Occurrence-status filter ────────────────────────────────────────────────
+	// "all" uses the counts already embedded in the GeoJSON, so the default view makes no
+	// request. Choosing a status fetches per-region counts and hands them to ChoroplethMap's
+	// existing `distributionData` override, which recolours and rescales the legend; regions
+	// with no records of that status are absent from the map and render as "no data".
+	let occurrenceStatus = $state<OccurrenceFilterValue>('all');
+	let statusCounts = $state<Map<string, number>>(new Map());
+	let statusLoading = $state(false);
+
+	// Publish to the shared store so the region panel reports the same figure the map shows.
+	$effect(() => {
+		setOccurrenceFilter({ status: occurrenceStatus, counts: statusCounts });
+	});
+
+	const legendSubtitle = $derived(
+		occurrenceStatus === 'all' ? 'Food plant taxa' : `Food plant taxa — ${occurrenceStatus}`
+	);
+
+	$effect(() => {
+		const status = occurrenceStatus;
+
+		if (status === 'all') {
+			statusCounts = new Map();
+			statusLoading = false;
+			return;
+		}
+
+		const controller = new AbortController();
+		statusLoading = true;
+
+		fetch(`${base}/api/v1/regions/counts?status=${status}`, { signal: controller.signal })
+			.then((response) => {
+				if (!response.ok) throw new Error(`HTTP ${response.status}`);
+				return response.json();
+			})
+			.then((payload: { data: { code: string; count: number }[] }) => {
+				statusCounts = new Map(payload.data.map((row) => [row.code, row.count]));
+			})
+			.catch((err) => {
+				if (err?.name === 'AbortError') return;
+				// Fall back to the unfiltered view rather than showing an empty map.
+				console.error('[map] occurrence counts failed:', err);
+				occurrenceStatus = 'all';
+			})
+			.finally(() => {
+				statusLoading = false;
+			});
+
+		return () => controller.abort();
+	});
 </script>
 
 <div class="flex h-screen w-screen flex-col overflow-hidden">
@@ -55,7 +112,12 @@
 					Distribution of edible plant taxa across 367 botanical regions.
 				</p>
 			</div>
-			<div class="shrink-0">
+			<div class="flex shrink-0 flex-wrap items-end gap-4">
+				<OccurrenceStatusFilter
+					value={occurrenceStatus}
+					onChange={(next) => (occurrenceStatus = next)}
+					loading={statusLoading}
+				/>
 				<RegionSearchBox
 					onSelectRegion={handleSelectRegion}
 					onPreviewRegion={handlePreviewRegion}
@@ -69,12 +131,12 @@
 			{#if geoJSON}
 				<ChoroplethMap
 					geoJSON={geoJSON as FeatureCollection}
-					distributionData={new Map()}
+					distributionData={statusCounts}
 					{selectedRegion}
 					{previewRegion}
 					onRegionClick={handleSelectRegion}
 					legendTitle="Count"
-					legendSubtitle="Food plant taxa"
+					{legendSubtitle}
 					legendPosition="bottom-left"
 				/>
 			{/if}

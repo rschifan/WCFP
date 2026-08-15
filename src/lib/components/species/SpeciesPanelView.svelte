@@ -28,12 +28,19 @@
 
 	interface Props {
 		regionName: string | null;
+		occurrence?: { status: string; count: number } | null;
 		isMobile?: boolean;
 		browserSource: TaxonomyBrowserSource | null;
 		onClose?: () => void;
 	}
 
-	let { regionName, isMobile: _isMobile = false, browserSource, onClose }: Props = $props();
+	let {
+		regionName,
+		occurrence = null,
+		isMobile: _isMobile = false,
+		browserSource,
+		onClose
+	}: Props = $props();
 
 	let browserSummary = $state<TaxonomyBrowserSummary>({
 		totalSpeciesCount: 0,
@@ -110,6 +117,11 @@
 								{formatCount(totalSpeciesCount)} taxa found
 							{/if}
 						</p>
+						{#if occurrence}
+							<p class="mt-0.5 text-xs text-slate-500">
+								{formatCount(occurrence.count)} recorded as {occurrence.status}
+							</p>
+						{/if}
 					{/if}
 				</div>
 

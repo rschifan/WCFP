@@ -8,11 +8,13 @@
 		regionCode: string | null;
 		/** Display label for the heading. */
 		regionName: string | null;
+		/** Active map occurrence filter, if any — shown alongside the total. */
+		occurrence?: { status: string; count: number } | null;
 		isMobile?: boolean;
 		onClose?: () => void;
 	}
 
-	let { regionCode, regionName, isMobile = false, onClose }: Props = $props();
+	let { regionCode, regionName, occurrence = null, isMobile = false, onClose }: Props = $props();
 
 	const browserSource = $derived.by<TaxonomyBrowserSource | null>(() => {
 		const code = regionCode?.trim();
@@ -20,4 +22,4 @@
 	});
 </script>
 
-<SpeciesPanelView {regionName} {isMobile} {browserSource} {onClose} />
+<SpeciesPanelView {regionName} {occurrence} {isMobile} {browserSource} {onClose} />

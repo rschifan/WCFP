@@ -256,6 +256,44 @@ export async function getRegionStats(conn: Connection, code: string): Promise<Re
 }
 
 /**
+ * Occurrence statuses the map can filter by. These are the values of the published
+ * `occurrence_status` field, which is a single resolved classification per (area, taxon).
+ *
+ * Deliberately filtered on that field rather than on the raw `introduced` flag: 27 records are
+ * flagged both introduced and location-doubtful, and the paper resolves them to `doubtful`. The
+ * paper is the authority, so `introduced` here means "what the paper calls introduced" (97,799
+ * records), not "has the introduced flag set" (97,826).
+ */
+export const OCCURRENCE_STATUSES = ['native', 'introduced', 'extinct', 'doubtful'] as const;
+export type OccurrenceStatus = (typeof OCCURRENCE_STATUSES)[number];
+
+export interface RegionCount {
+	code: string;
+	count: number;
+}
+
+/**
+ * Per-region taxon counts restricted to one occurrence status.
+ *
+ * Regions with no records of that status are omitted rather than returned as zero, so the map
+ * greys them out instead of colouring them at the bottom of the scale.
+ */
+export async function getRegionCountsByStatus(
+	conn: Connection,
+	status: OccurrenceStatus
+): Promise<RegionCount[]> {
+	return query<RegionCount>(
+		conn,
+		`SELECT code, COUNT(DISTINCT wcfp_id) AS count
+		 FROM distribution
+		 WHERE occurrence_status = ?
+		 GROUP BY code
+		 ORDER BY code`,
+		[status]
+	);
+}
+
+/**
  * Top 10 families for a region.
  */
 export async function getRegionTopFamilies(conn: Connection, code: string): Promise<TopFamily[]> {

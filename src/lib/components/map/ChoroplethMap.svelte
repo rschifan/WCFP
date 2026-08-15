@@ -5,16 +5,11 @@
 	import { select } from 'd3-selection';
 	import Legend from '../Legend.svelte';
 	import { APP_MAP_PALETTE, type MapPalette } from '$lib/constants/palette';
+	import { computeFillColor, computeRange, type ValueRange } from '$lib/map/color-scale';
 
 	// ---------------------------------------------------------------------------
 	// Types
 	// ---------------------------------------------------------------------------
-
-	interface CountRange {
-		min: number;
-		max: number;
-		mid: number;
-	}
 
 	interface TooltipState {
 		x: number;
@@ -43,7 +38,7 @@
 
 	interface EnrichedResult {
 		geoJSON: FeatureCollection;
-		range: CountRange;
+		range: ValueRange;
 		missingCodes: string[];
 	}
 
@@ -70,6 +65,12 @@
 		selectedStrokeWidth?: number;
 		tooltipOffset?: number;
 		showLegend?: boolean;
+		/** Noun for the measured value, used in the tooltip and aria labels. */
+		valueLabel?: string;
+		/** Formats the value for tooltip and legend ticks — percentages are not integers. */
+		formatValue?: (value: number) => string;
+		/** True when zero is a real reading rather than an absence (ratios, not counts). */
+		zeroIsData?: boolean;
 		legendTitle?: string;
 		legendSubtitle?: string;
 		legendPosition?: 'top' | 'bottom' | 'bottom-left';
@@ -103,52 +104,6 @@
 		return typeof p.LEVEL3_COD === 'string' && p.LEVEL3_COD ? p.LEVEL3_COD : null;
 	}
 
-	function clamp(value: number, min: number, max: number): number {
-		return Math.min(max, Math.max(min, value));
-	}
-
-	function hexToRgb(hex: string): [number, number, number] {
-		const normalized = hex.replace('#', '');
-		const full =
-			normalized.length === 3
-				? normalized
-						.split('')
-						.map((c) => `${c}${c}`)
-						.join('')
-				: normalized;
-		const value = parseInt(full, 16);
-		return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-	}
-
-	function interpolateColor(from: string, to: string, ratio: number): string {
-		const t = clamp(ratio, 0, 1);
-		const [r1, g1, b1] = hexToRgb(from);
-		const [r2, g2, b2] = hexToRgb(to);
-		return `rgb(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)})`;
-	}
-
-	function computeFillColor(
-		count: number | null,
-		range: CountRange,
-		cols: { low: string; mid: string; high: string },
-		noDataColor: string
-	): string {
-		if (count === null || count <= 0 || range.max <= 0) return noDataColor;
-		if (range.min === range.max) return cols.mid;
-		if (count <= range.mid) {
-			return interpolateColor(
-				cols.low,
-				cols.mid,
-				(count - range.min) / Math.max(range.mid - range.min, 1)
-			);
-		}
-		return interpolateColor(
-			cols.mid,
-			cols.high,
-			(count - range.mid) / Math.max(range.max - range.mid, 1)
-		);
-	}
-
 	// ---------------------------------------------------------------------------
 	// Props
 	// ---------------------------------------------------------------------------
@@ -171,7 +126,10 @@
 		legendTitle = 'Count',
 		legendSubtitle,
 		legendPosition = 'bottom',
-		autoFitBounds = true
+		autoFitBounds = true,
+		valueLabel = 'Count',
+		formatValue = (v: number) => v.toLocaleString(),
+		zeroIsData = false
 	}: Props = $props();
 
 	// ---------------------------------------------------------------------------
@@ -232,9 +190,12 @@
 				rawCount = regionCode ? distributionData.get(regionCode) : undefined;
 			} else {
 				const preCount = p.unique_count;
-				rawCount = typeof preCount === 'number' && preCount > 0 ? preCount : undefined;
+				const usable =
+					typeof preCount === 'number' && (zeroIsData ? preCount >= 0 : preCount > 0);
+				rawCount = usable ? (preCount as number) : undefined;
 			}
-			const hasData = typeof rawCount === 'number' && rawCount > 0;
+			const hasData =
+				typeof rawCount === 'number' && (zeroIsData ? rawCount >= 0 : rawCount > 0);
 			if (hasData) counts.push(rawCount as number);
 
 			return {
@@ -252,12 +213,7 @@
 			? [...distributionData.keys()].filter((c) => !knownCodes.has(c))
 			: [];
 
-		let range: CountRange = { min: 0, max: 0, mid: 0 };
-		if (counts.length > 0) {
-			const min = Math.min(...counts);
-			const max = Math.max(...counts);
-			range = { min, max, mid: Math.round((min + max) / 2) };
-		}
+		const range = computeRange(counts, zeroIsData);
 
 		return { geoJSON: { type: 'FeatureCollection', features }, range, missingCodes };
 	});
@@ -526,7 +482,13 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<path
 					d={feature.d}
-					fill={computeFillColor(feature.count, countRange, effectiveColors, palette.noData)}
+					fill={computeFillColor(
+						feature.count,
+						countRange,
+						effectiveColors,
+						palette.noData,
+						zeroIsData
+					)}
 					fill-opacity={isSelected ? 0.5 : 0.7}
 					stroke="#000000"
 					stroke-width="0.5"
@@ -535,7 +497,7 @@
 					cursor={feature.hasData ? 'pointer' : 'default'}
 					role={feature.hasData ? 'button' : undefined}
 					aria-label={feature.hasData && feature.count !== null
-						? `${feature.name}: ${feature.count.toLocaleString()} taxa`
+						? `${feature.name}: ${formatValue(feature.count)}`
 						: undefined}
 					onmousemove={(event) => {
 						if (!feature.hasData) return;
@@ -607,7 +569,7 @@
 			<div class="text-sm font-semibold">{tooltip.name}</div>
 			<div class="text-xs text-slate-300">
 				{#if tooltip.hasData && tooltip.count !== null}
-					Count: <span class="font-medium text-white">{tooltip.count.toLocaleString()}</span>
+					{valueLabel}: <span class="font-medium text-white">{formatValue(tooltip.count)}</span>
 				{:else}
 					<span class="font-medium text-white">No data</span>
 				{/if}

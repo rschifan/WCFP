@@ -2,18 +2,13 @@
 	import type { FeatureCollection, GeoJsonProperties } from 'geojson';
 	import Legend from '../Legend.svelte';
 	import { APP_MAP_PALETTE, type MapPalette } from '$lib/constants/palette';
+	import { computeFillColor, type ValueRange } from '$lib/map/color-scale';
 
 	interface Props {
 		geoJSON: FeatureCollection;
 		distributionData: Map<string, number>;
 		palette?: MapPalette;
 		showLegend?: boolean;
-	}
-
-	interface CountRange {
-		min: number;
-		max: number;
-		mid: number;
 	}
 
 	interface TooltipState {
@@ -76,51 +71,8 @@
 		return 'Unknown';
 	}
 
-	function clamp(value: number, min: number, max: number): number {
-		return Math.min(max, Math.max(min, value));
-	}
-
-	function hexToRgb(hex: string): [number, number, number] {
-		const normalized = hex.replace('#', '');
-		const full =
-			normalized.length === 3
-				? normalized
-						.split('')
-						.map((c) => `${c}${c}`)
-						.join('')
-				: normalized;
-		const value = Number.parseInt(full, 16);
-		return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-	}
-
-	function interpolateColor(from: string, to: string, ratio: number): string {
-		const t = clamp(ratio, 0, 1);
-		const [r1, g1, b1] = hexToRgb(from);
-		const [r2, g2, b2] = hexToRgb(to);
-
-		const r = Math.round(r1 + (r2 - r1) * t);
-		const g = Math.round(g1 + (g2 - g1) * t);
-		const b = Math.round(b1 + (b2 - b1) * t);
-
-		return `rgb(${r}, ${g}, ${b})`;
-	}
-
-	function fillColor(count: number | null, range: CountRange): string {
-		if (count === null || count <= 0 || range.max <= 0) {
-			return palette.noData;
-		}
-
-		if (range.min === range.max) {
-			return palette.mid;
-		}
-
-		if (count <= range.mid) {
-			const denominator = Math.max(range.mid - range.min, 1);
-			return interpolateColor(palette.low, palette.mid, (count - range.min) / denominator);
-		}
-
-		const denominator = Math.max(range.max - range.mid, 1);
-		return interpolateColor(palette.mid, palette.high, (count - range.mid) / denominator);
+	function fillColor(count: number | null, range: ValueRange): string {
+		return computeFillColor(count, range, palette, palette.noData);
 	}
 
 	function expandBounds(

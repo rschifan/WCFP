@@ -1,23 +1,27 @@
 #!/usr/bin/env node
 /**
- * Derive TDWG3 <-> political country mappings from the Level 4 WGSRPD shapefile.
+ * Derive the TDWG3 <-> country mapping that powers the region search box.
  *
- * Input:  data/wgsrpd-master/geojson/level4.geojson
- *         scripts/data/iso-country-names.json
+ * Input:  data/TDWG3_count_wcfp_ISO_R1.csv
  * Output: static/data/region-countries.json
  *
- * DETERMINISTIC BY DESIGN. The output is a pure function of its two inputs, so
+ * THE PAPER IS THE AUTHORITY. This used to be derived from the Level 4 WGSRPD shapefile's
+ * ISO_Code field plus a pinned ISO->name table, which disagreed with the published dataset on
+ * 24 dependent territories (the shapefile files Réunion under RE, the paper under France) and
+ * carried defects the paper does not: it used the non-ISO code `UK` — mapped to FRA, GRB and
+ * IRE, so searching "United Kingdom" surfaced France and Ireland — and two unresolved
+ * placeholders `PI`/`SP` that rendered as country names for the South China Sea.
+ *
+ * Entries are keyed by country NAME, not ISO code, because the paper deliberately assigns no
+ * ISO code to the 24 areas spanning more than one country; it lists the constituents separated
+ * by "/" instead. Keying on ISO would collapse all 24 into one empty-string bucket. The name is
+ * what the search box matches and displays; the ISO codes ride along as attributes.
+ *
+ * DETERMINISTIC BY DESIGN. The output is a pure function of its input, so
  * `pnpm build:geo-aliases && git diff --exit-code static/data/region-countries.json`
- * is a meaningful check. Three things previously made it non-reproducible:
- *
- *   1. a `generatedAt` timestamp        -> removed
- *   2. Intl.DisplayNames for names      -> replaced by the pinned table below
- *   3. localeCompare for BOTH sorts     -> replaced by collationKey()
- *
- * (2) and (3) drew on the running Node's bundled ICU tables, so the same source
- * could yield "Turkey" on one Node and "Türkiye" on another, silently changing
- * what the region search box matches. The pinned names are exactly those the
- * portal served on 2026-08-13; changing one is a deliberate, reviewable edit.
+ * is a meaningful check. Sorting uses collationKey()/byCodePoint() rather than
+ * localeCompare, which draws on the running Node's bundled ICU tables and so could order the
+ * same input differently on different machines.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -26,9 +30,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
-const SOURCE = resolve(repoRoot, 'data/wgsrpd-master/geojson/level4.geojson');
 const COUNTS = resolve(repoRoot, 'data/TDWG3_count_wcfp_ISO_R1.csv');
-const NAMES = resolve(__dirname, 'data/iso-country-names.json');
 const OUT = resolve(repoRoot, 'static/data/region-countries.json');
 
 /**
@@ -36,6 +38,7 @@ const OUT = resolve(repoRoot, 'static/data/region-countries.json');
  * strip diacritics, lowercase, then compare by code point. Handles the two
  * cases a naive sort gets wrong — "Côte d'Ivoire" before "Croatia" (o folds),
  * and "U.S. Outlying Islands" before "Uganda" (punctuation precedes letters).
+ * @param {string} value
  */
 function collationKey(value) {
 	return value
@@ -44,120 +47,144 @@ function collationKey(value) {
 		.toLowerCase();
 }
 
-/** Code-point comparison — deterministic, unlike String.prototype.localeCompare. */
+/**
+ * Code-point comparison — deterministic, unlike String.prototype.localeCompare.
+ * @param {string} a
+ * @param {string} b
+ */
 function byCodePoint(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**
- * The regions the portal can actually show are exactly those in the published counts file.
- * Deriving the set from that file rather than hardcoding exclusions means the search box can
- * never offer a region that resolves to nothing — previously it listed Bouvet I. (`BOU`), which
- * has no food plants and bounced the user straight back to the map.
+ * Minimal RFC 4180 row splitter — the country column contains commas inside quotes
+ * (e.g. "Antigua and Barbuda / Saint Kitts and Nevis" is safe, but names like
+ * "Bosnia-Herz." are not guaranteed to stay comma-free in a future revision).
+ * @param {string} line
  */
-function readPublishedCodes() {
-	let csv;
-	try {
-		csv = readFileSync(COUNTS, 'utf8');
-	} catch (err) {
-		if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
-			console.error(
-				`build-region-countries: published counts not found at ${COUNTS}.\n` +
-					`It defines which regions exist; see README "Obtain source data files".`
-			);
-			process.exit(1);
+function splitCsvRow(line) {
+	const out = [];
+	let field = '';
+	let inQuotes = false;
+
+	for (let i = 0; i < line.length; i++) {
+		const ch = line[i];
+		if (inQuotes) {
+			if (ch === '"') {
+				if (line[i + 1] === '"') {
+					field += '"';
+					i++;
+				} else {
+					inQuotes = false;
+				}
+			} else {
+				field += ch;
+			}
+		} else if (ch === '"') {
+			inQuotes = true;
+		} else if (ch === ',') {
+			out.push(field);
+			field = '';
+		} else {
+			field += ch;
 		}
-		throw err;
 	}
-
-	const lines = csv.trim().split(/\r?\n/);
-	const header = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
-	const codeIndex = header.indexOf('area_code_l3');
-	if (codeIndex === -1) {
-		console.error(`build-region-countries: no area_code_l3 column in ${COUNTS}.`);
-		process.exit(1);
-	}
-
-	return new Set(
-		lines
-			.slice(1)
-			.map((line) => line.split(',')[codeIndex]?.trim().replace(/^"|"$/g, ''))
-			.filter(Boolean)
-	);
+	out.push(field);
+	return out.map((f) => f.trim());
 }
 
-const PUBLISHED_L3 = readPublishedCodes();
-
-let raw;
+let csv;
 try {
-	raw = JSON.parse(readFileSync(SOURCE, 'utf8'));
+	csv = readFileSync(COUNTS, 'utf8');
 } catch (err) {
 	if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
 		console.error(
-			`build-region-countries: source file not found at ${SOURCE}.\n` +
-				`Populate data/wgsrpd-master/ before running this script (see README).`
+			`build-region-countries: source file not found at ${COUNTS}.\n` +
+				`It is distributed on request; see README "Obtain source data files".`
 		);
 		process.exit(1);
 	}
 	throw err;
 }
 
-/** @type {Record<string, string>} ISO 3166-1 alpha-2 -> display name. Pinned, not derived. */
-const regionNames = JSON.parse(readFileSync(NAMES, 'utf8'));
+const lines = csv.trim().split(/\r?\n/);
+const header = splitCsvRow(lines[0]);
+const col = Object.fromEntries(header.map((name, index) => [name, index]));
 
-/** @type {Map<string, Set<string>>} */
-const l3ToIso = new Map();
-/** @type {Map<string, Set<string>>} */
-const isoToL3 = new Map();
-
-for (const f of raw.features) {
-	const iso = f.properties?.ISO_Code;
-	const l3 = f.properties?.Level3_cod;
-	if (!iso || !l3 || !PUBLISHED_L3.has(l3)) continue;
-	if (!l3ToIso.has(l3)) l3ToIso.set(l3, new Set());
-	l3ToIso.get(l3).add(iso);
-	if (!isoToL3.has(iso)) isoToL3.set(iso, new Set());
-	isoToL3.get(iso).add(l3);
+for (const required of ['area_code_l3', 'country', 'ISO_alpha2', 'ISO_alpha3']) {
+	if (!(required in col)) {
+		console.error(
+			`build-region-countries: ${COUNTS} has no "${required}" column. Got: ${header.join(', ')}`
+		);
+		process.exit(1);
+	}
 }
 
-const regionCountries = Object.fromEntries(
-	[...l3ToIso.entries()]
-		.sort(([a], [b]) => byCodePoint(a, b))
-		.map(([l3, isos]) => [l3, [...isos].sort(byCodePoint)])
-);
+/** @type {Map<string, { name: string, iso: string, iso3: string, regions: Set<string> }>} */
+const countryByName = new Map();
+/** @type {Map<string, string[]>} */
+const regionCountries = new Map();
 
-const missingNames = [...isoToL3.keys()].filter((iso) => !(iso in regionNames)).sort(byCodePoint);
-if (missingNames.length > 0) {
-	console.error(
-		`build-region-countries: no pinned name for ${missingNames.join(', ')}.\n` +
-			`Add them to scripts/data/iso-country-names.json. Falling back to ICU here would\n` +
-			`reintroduce the version-dependent naming this script exists to avoid.`
-	);
-	process.exit(1);
+for (const line of lines.slice(1)) {
+	const cells = splitCsvRow(line);
+	const code = cells[col['area_code_l3']];
+	if (!code) continue;
+
+	// One country, or several separated by "/" — with or without surrounding spaces.
+	const names = cells[col['country']]
+		.split('/')
+		.map((n) => n.trim())
+		.filter(Boolean);
+
+	// The paper assigns ISO codes only where an area maps to exactly one country.
+	const single = names.length === 1;
+	const iso = single ? cells[col['ISO_alpha2']] : '';
+	const iso3 = single ? cells[col['ISO_alpha3']] : '';
+
+	regionCountries.set(code, names);
+
+	for (const name of names) {
+		let entry = countryByName.get(name);
+		if (!entry) {
+			entry = { name, iso: '', iso3: '', regions: new Set() };
+			countryByName.set(name, entry);
+		}
+		entry.regions.add(code);
+		// A country reached only through multi-country areas has no ISO code in the paper.
+		if (iso && !entry.iso) {
+			entry.iso = iso;
+			entry.iso3 = iso3;
+		}
+	}
 }
 
-const countries = [...isoToL3.entries()]
-	.map(([iso, l3s]) => ({
-		iso,
-		name: regionNames[iso],
-		regions: [...l3s].sort(byCodePoint)
-	}))
-	.filter((c) => c.regions.length > 0)
-	.sort((a, b) => byCodePoint(collationKey(a.name), collationKey(b.name)) || byCodePoint(a.iso, b.iso));
-
-// No `generatedAt`: a timestamp would make every run differ and defeat the
-// regeneration check. Nothing consumes it — see src/lib/stores/region-search-data.ts.
 const output = {
-	version: 1,
-	source: 'data/wgsrpd-master/geojson/level4.geojson',
-	regionCountries,
-	countries
+	version: 2,
+	source: 'data/TDWG3_count_wcfp_ISO_R1.csv',
+	regionCountries: Object.fromEntries(
+		[...regionCountries.entries()]
+			.sort(([a], [b]) => byCodePoint(a, b))
+			.map(([code, names]) => [code, [...names].sort((a, b) => byCodePoint(a, b))])
+	),
+	countries: [...countryByName.values()]
+		.map((entry) => ({
+			name: entry.name,
+			iso: entry.iso,
+			iso3: entry.iso3,
+			regions: [...entry.regions].sort(byCodePoint)
+		}))
+		.sort(
+			(a, b) =>
+				byCodePoint(collationKey(a.name), collationKey(b.name)) || byCodePoint(a.name, b.name)
+		)
 };
 
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, JSON.stringify(output));
 
-const bytes = Buffer.byteLength(JSON.stringify(output));
+const withIso = output.countries.filter((c) => c.iso).length;
 console.log(
-	`region-countries: ${countries.length} countries, ${Object.keys(regionCountries).length} TDWG3 regions -> ${OUT} (${(bytes / 1024).toFixed(1)} KB)`
+	`region-countries: ${output.countries.length} countries (${withIso} with an ISO code), ` +
+		`${Object.keys(output.regionCountries).length} TDWG3 regions -> ${OUT} ` +
+		`(${(JSON.stringify(output).length / 1024).toFixed(1)} KB)`
 );

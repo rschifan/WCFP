@@ -2,11 +2,7 @@
 	import { onMount } from 'svelte';
 	import { fromStore } from 'svelte/store';
 	import { Search, X, MapPin } from 'lucide-svelte';
-	import {
-		loadRegionSearchData,
-		regionSearchDataStore,
-		type RegionCountryEntry
-	} from '$lib/stores/region-search-data';
+	import { loadRegionSearchData, regionSearchDataStore } from '$lib/stores/region-search-data';
 	import { regionGeometryStore } from '$lib/stores/region-geometry';
 
 	interface Props {
@@ -78,25 +74,14 @@
 		return (props?.LEVEL3_NAM as string) ?? (props?.area as string) ?? code;
 	}
 
-	/** Country entries indexed by ISO code for quick reverse lookups. */
-	const countryByIso = $derived.by<Map<string, RegionCountryEntry>>(() => {
-		const data = searchState.current.data;
-		if (!data) return new Map();
-		return new Map(data.countries.map((c) => [c.iso, c]));
-	});
-
-	/** TDWG3 code → list of country names that contain it. */
+	/**
+	 * TDWG3 code → country names that contain it. The payload already stores names, since the
+	 * paper assigns no ISO code to areas spanning more than one country.
+	 */
 	const countriesByRegion = $derived.by<Map<string, string[]>>(() => {
 		const data = searchState.current.data;
 		if (!data) return new Map();
-		const out = new Map<string, string[]>();
-		for (const [code, isos] of Object.entries(data.regionCountries)) {
-			const names = isos
-				.map((iso) => countryByIso.get(iso)?.name ?? iso)
-				.sort((a, b) => a.localeCompare(b));
-			out.set(code, names);
-		}
-		return out;
+		return new Map(Object.entries(data.regionCountries));
 	});
 
 	const regionCodes = $derived.by<string[]>(() => {
@@ -138,7 +123,7 @@
 				const name = normalize(country.name);
 				const iso = normalize(country.iso);
 				let countryScore = -1;
-				if (iso === q) countryScore = 5;
+				if (iso && iso === q) countryScore = 5;
 				else if (name === q) countryScore = 5;
 				else if (name.startsWith(q)) countryScore = 6;
 				else if (name.includes(q)) countryScore = 7;

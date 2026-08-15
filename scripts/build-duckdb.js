@@ -363,6 +363,38 @@ async function main() {
 		}
 	}
 
+	// WGSRPD Level 1 (continent) and Level 2 (region) are attributes of the AREA, not of the
+	// distribution record — verified: 367 areas yield exactly 367 distinct (L3, L2, L1) triples,
+	// so they live here on 367 rows rather than being repeated across 376k distribution rows.
+	await run(
+		conn,
+		`
+		CREATE TABLE area_hierarchy AS
+		SELECT DISTINCT
+			TRIM(area_code_l3)            AS code,
+			CAST(continent_code_l1 AS INTEGER) AS continent_code,
+			TRIM(continent)               AS continent,
+			CAST(region_code_l2 AS INTEGER)    AS region_code,
+			TRIM(region)                  AS region
+		FROM read_csv_auto('${csvPathSql}', delim=',', quote='"', header=true)
+		WHERE TRIM(area_code_l3) != ''
+	`
+	);
+	const [{ hierarchy_rows }] = await exec(
+		conn,
+		`SELECT COUNT(*) AS hierarchy_rows FROM area_hierarchy`
+	);
+	const [{ hierarchy_codes }] = await exec(
+		conn,
+		`SELECT COUNT(DISTINCT code) AS hierarchy_codes FROM area_hierarchy`
+	);
+	if (Number(hierarchy_rows) !== Number(hierarchy_codes)) {
+		throw new Error(
+			`INTEGRITY ERROR: an area maps to more than one Level 1/Level 2 unit ` +
+				`(${hierarchy_rows} rows for ${hierarchy_codes} codes). The hierarchy is not per-area.`
+		);
+	}
+
 	await run(
 		conn,
 		`
@@ -373,6 +405,10 @@ async function main() {
 			COALESCE(TRIM(c.country), '')               AS country,
 			COALESCE(TRIM(c.ISO_alpha2), '')            AS iso_alpha2,
 			COALESCE(TRIM(c.ISO_alpha3), '')            AS iso_alpha3,
+			h.continent_code                            AS continent_code,
+			h.continent                                 AS continent,
+			h.region_code                               AS region_code,
+			h.region                                    AS region,
 			CAST(c.unique_count AS INTEGER)             AS unique_count_published,
 			CAST(c.Percentage AS DOUBLE)                AS percentage,
 			CAST(c.flora_richness AS INTEGER)           AS flora_richness,
@@ -380,9 +416,11 @@ async function main() {
 			g.geom                                      AS geom
 		FROM read_csv_auto('${countsPathSql}', delim=',', quote='"', header=true) c
 		JOIN shapefile_geom g ON g.code = TRIM(c.area_code_l3)
+		JOIN area_hierarchy h ON h.code = TRIM(c.area_code_l3)
 	`
 	);
 	await run(conn, `DROP TABLE shapefile_geom`);
+	await run(conn, `DROP TABLE area_hierarchy`);
 
 	// Every published area must have geometry. A code present in the paper but absent from the
 	// shapefile would vanish from the map with no error at all.

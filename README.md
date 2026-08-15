@@ -46,7 +46,7 @@ A SvelteKit application for exploring and visualizing the World Checklist of Foo
    - `data/geo_distr_taxa_ISO_R1.csv` (45 MB) - distribution records with `occurrence_status`
    - `data/TDWG3_count_wcfp_ISO_R1.csv` - the published per-area counts, ISO codes and
      `flora_richness` / `pct_of_flora`
-   - `data/wgsrpd-master/` - TDWG geographic region data (geometry only)
+   - `data/wgsrpd-master/` - TDWG Level-3 shapefile (geometry only)
 
    **Note**: These files are excluded from git due to their size. You need to obtain them separately:
    - From a team shared location
@@ -238,7 +238,7 @@ data is distributed on request. From the repository root:
 sha256sum -c data/MANIFEST.sha256
 ```
 
-All six entries must report `OK`. A mismatch means your copy differs from the one the
+All five entries must report `OK`. A mismatch means your copy differs from the one the
 deployed database was built from, and `pnpm refresh:data` would produce a different
 result.
 

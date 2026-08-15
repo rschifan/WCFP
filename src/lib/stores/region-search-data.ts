@@ -2,13 +2,18 @@ import { writable, type Readable } from 'svelte/store';
 import { base } from '$app/paths';
 
 export interface RegionCountryEntry {
-	iso: string;
+	/** Country name as published in the paper — the identity of the entry. */
 	name: string;
+	/** ISO 3166-1 alpha-2, or '' for countries reached only through multi-country areas. */
+	iso: string;
+	/** ISO 3166-1 alpha-3, same caveat. */
+	iso3: string;
 	regions: string[];
 }
 
 export interface RegionCountriesPayload {
 	version: number;
+	/** TDWG3 code -> country names (several where an area spans more than one country). */
 	regionCountries: Record<string, string[]>;
 	countries: RegionCountryEntry[];
 }

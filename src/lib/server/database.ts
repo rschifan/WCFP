@@ -9,6 +9,7 @@
  *   distribution       code + wcfp_id (PK), FK → species, occurrence_status,
  *                      introduced / extinct / location_doubtful flags
  *   regions            code (PK), area, country, iso_alpha2, iso_alpha3,
+ *                      continent_code, continent, region_code, region,
  *                      unique_count_published, percentage, flora_richness,
  *                      pct_of_flora, geom
  *   region_stats       code (PK), total_species, family_count (pre-aggregated)

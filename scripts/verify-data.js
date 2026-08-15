@@ -15,6 +15,7 @@
  *   node scripts/verify-data.js
  */
 
+import { readFileSync } from 'fs';
 import { createRequire } from 'module';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -202,6 +203,81 @@ async function main() {
 
 	// Independent re-derivation: recompute the counts straight from the source CSV rather than
 	// from the database, so a shared bug in the ingest cannot make both sides agree.
+	console.log('\nWGSRPD hierarchy (Level 1 / Level 2)');
+	check('continents', await one(conn, `SELECT COUNT(DISTINCT continent) FROM regions`), 9);
+	check('Level 2 regions', await one(conn, `SELECT COUNT(DISTINCT region) FROM regions`), 51);
+	check(
+		'areas missing a continent or region',
+		await one(
+			conn,
+			`SELECT COUNT(*) FROM regions
+			 WHERE continent IS NULL OR continent = '' OR region IS NULL OR region = ''`
+		),
+		0
+	);
+	check(
+		'areas whose hierarchy disagrees with the source CSV',
+		await one(
+			conn,
+			`WITH src AS (
+			   SELECT DISTINCT TRIM(area_code_l3) AS code,
+			          CAST(continent_code_l1 AS INTEGER) AS continent_code,
+			          CAST(region_code_l2 AS INTEGER)    AS region_code
+			   FROM read_csv_auto('${sqlPath(DIST)}', header=true)
+			 )
+			 SELECT COUNT(*) FROM regions r
+			 LEFT JOIN src ON src.code = r.code
+			  AND src.continent_code = r.continent_code
+			  AND src.region_code = r.region_code
+			 WHERE src.code IS NULL`
+		),
+		0
+	);
+
+	// The search box must offer exactly the regions the portal can serve, with the paper's
+	// country names -- not the shapefile's, which disagreed on 24 dependent territories.
+	console.log('\nRegion search mapping (must come from the paper)');
+	const searchPayload = JSON.parse(
+		readFileSync(path.join(ROOT, 'static/data/region-countries.json'), 'utf8')
+	);
+	check('payload source', searchPayload.source, 'data/TDWG3_count_wcfp_ISO_R1.csv');
+	check(
+		'searchable regions',
+		Object.keys(searchPayload.regionCountries).length,
+		PUBLISHED.areas
+	);
+	const dbCodes = new Set(
+		(await sql(conn, `SELECT code FROM regions`)).map((r) => r.code)
+	);
+	check(
+		'search regions absent from the database',
+		Object.keys(searchPayload.regionCountries).filter((c) => !dbCodes.has(c)).length,
+		0
+	);
+	check(
+		'country entries whose name is a bare code placeholder',
+		searchPayload.countries.filter((c) => c.name === c.iso).length,
+		0
+	);
+	check(
+		'non-ISO country codes (e.g. UK for GB)',
+		searchPayload.countries.filter((c) => c.iso && !/^[A-Z]{2}$/.test(c.iso)).length,
+		0
+	);
+	const multi = await sql(
+		conn,
+		`SELECT code, country FROM regions WHERE iso_alpha2 = '' ORDER BY code`
+	);
+	check(
+		'multi-country areas listed with every constituent',
+		multi.filter(
+			(r) =>
+				(searchPayload.regionCountries[r.code] ?? []).length ===
+				r.country.split('/').map((n) => n.trim()).filter(Boolean).length
+		).length,
+		multi.length
+	);
+
 	console.log('\nSource CSV re-derivation (independent of the database)');
 	check(
 		'areas where source CSV disagrees with the published counts',

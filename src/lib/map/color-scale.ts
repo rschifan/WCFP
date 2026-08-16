@@ -9,6 +9,9 @@
  * about to appear for the flora-share layer, so it moved here instead.
  */
 
+import type { OccurrenceStatusFilter } from '$lib/types/taxonomy';
+import type { OccurrencePalette } from '$lib/constants/palette';
+
 export interface ValueRange {
 	min: number;
 	max: number;
@@ -89,6 +92,37 @@ export function computeFillColor(
 		colors.high,
 		(v - range.mid) / Math.max(range.max - range.mid, Number.EPSILON)
 	);
+}
+
+/** Legend order for occurrence status: how a taxon got there, commonest first. */
+export const OCCURRENCE_ORDER: readonly OccurrenceStatusFilter[] = [
+	'native',
+	'introduced',
+	'extinct',
+	'doubtful'
+];
+
+export const OCCURRENCE_LABELS: Record<OccurrenceStatusFilter, string> = {
+	native: 'Native',
+	introduced: 'Introduced',
+	extinct: 'Extinct',
+	doubtful: 'Doubtful'
+};
+
+/**
+ * Fill for one area on a single-species map.
+ *
+ * Unlike `computeFillColor` there is no ramp to interpolate: the four statuses are unordered
+ * categories, so an unrecognised or absent status falls through to no-data rather than to an
+ * endpoint colour.
+ */
+export function occurrenceFillColor(
+	status: OccurrenceStatusFilter | null | undefined,
+	colors: OccurrencePalette,
+	noDataColor: string
+): string {
+	if (!status) return noDataColor;
+	return colors[status] ?? noDataColor;
 }
 
 /**

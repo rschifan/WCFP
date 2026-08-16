@@ -1,5 +1,14 @@
 <!doctype html>
-<html lang="en" data-theme="cerberus">
+<!--
+	The portal is a light-mode application, by design rather than by omission: the palette, the
+	map's red count ramp and the partner logos are all built for a light ground.
+
+	`data-mode` is therefore set, not merely defaulted. Skeleton's tokens otherwise follow the
+	reader's operating system, which would render tokenised markup dark against chrome that
+	cannot follow it. Keep this attribute; new markup should use Skeleton's light tokens and need
+	not carry dark variants.
+-->
+<html lang="en" data-theme="cerberus" data-mode="light">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />

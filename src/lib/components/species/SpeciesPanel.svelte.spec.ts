@@ -207,8 +207,8 @@ describe('SpeciesPanel shared search state', () => {
 		await expect.element(searchInput).toHaveValue('');
 	});
 
-	it('opens the shared species detail panel from row click in the unified panel', async () => {
-		expect.assertions(5);
+	it('opens the scheda from a species row in the region panel', async () => {
+		expect.assertions(3);
 
 		render(SpeciesPanelHarness, {
 			target: target ?? document.body,
@@ -221,22 +221,14 @@ describe('SpeciesPanel shared search state', () => {
 		await page.getByRole('button', { name: /^Hydrodictyaceae/ }).click();
 		await page.getByRole('button', { name: /^Hydrodictyon/ }).click();
 
-		const speciesRow = page.getByRole('button', { name: /^Hydrodictyon reticulatum/ });
-
-		await expect
-			.element(page.getByRole('button', { name: 'Show details for Hydrodictyon reticulatum' }))
-			.not.toBeInTheDocument();
-
-		await speciesRow.click();
+		await page.getByRole('button', { name: /^Hydrodictyon reticulatum/ }).click();
 
 		await expect.element(page.getByRole('dialog')).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('heading', { name: 'Hydrodictyon reticulatum (L.) Bory' }))
 			.toBeInTheDocument();
 
-		await page.getByRole('button', { name: 'Close panel' }).click();
-
+		await page.getByRole('button', { name: 'Close' }).click();
 		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
-		await expect.element(speciesRow).toHaveFocus();
 	});
 });

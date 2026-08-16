@@ -32,11 +32,7 @@
 		onClose?: () => void;
 	}
 
-	let {
-		regionName,
-		browserSource,
-		onClose
-	}: Props = $props();
+	let { regionName, browserSource, onClose }: Props = $props();
 
 	let browserSummary = $state<TaxonomyBrowserSummary>({
 		totalSpeciesCount: 0,
@@ -62,17 +58,21 @@
 		});
 	}
 
-	function getSpeciesDetailSource(node: TaxonomyNodeNormalized) {
-		if (node.rank !== 'species' || typeof node.wcfpId !== 'number') {
-			return null;
-		}
-
-		return { wcfpId: node.wcfpId };
+	/**
+	 * The same predicate the taxonomy browser uses, so the "N areas" action appears under
+	 * identical conditions on both surfaces. Without it the tree defaults to unclickable and the
+	 * region panel silently loses the distribution map.
+	 */
+	function isNodeClickable(node: TaxonomyNodeNormalized): boolean {
+		return node.hasDistribution === true;
 	}
 </script>
 
 {#snippet emptyState()}
-	<div class="flex h-48 items-center justify-center px-6 text-center" transition:fade={{ duration: 150 }}>
+	<div
+		class="flex h-48 items-center justify-center px-6 text-center"
+		transition:fade={{ duration: 150 }}
+	>
 		<div>
 			<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
 				<Inbox class="h-8 w-8 text-slate-400" strokeWidth={1.5} />
@@ -95,7 +95,7 @@
 	{/if}
 
 	<section
-		class="fixed inset-x-0 bottom-0 z-50 flex h-[72vh] max-h-[92vh] flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-[26rem] md:max-w-[42vw] md:rounded-none md:border-0 md:border-r md:border-slate-200 md:shadow-none"
+		class="fixed inset-x-0 bottom-0 z-50 flex h-[72dvh] max-h-[92dvh] flex-col rounded-t-2xl border border-slate-200 bg-white shadow-2xl md:relative md:inset-auto md:z-auto md:h-full md:w-[26rem] md:max-w-[42vw] md:rounded-none md:border-0 md:border-r md:border-slate-200 md:shadow-none"
 		role="complementary"
 		aria-label="Species panel"
 		transition:panelTransition
@@ -107,7 +107,9 @@
 					{#if totalSpeciesCount > 0}
 						<span class="ml-1 text-sm font-normal text-slate-500">
 							{#if browserSummary.hasActiveQuery && visibleSpeciesCount !== totalSpeciesCount}
-								· <span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span> of {formatCount(totalSpeciesCount)} taxa
+								· <span class="app-accent-text font-medium">{formatCount(visibleSpeciesCount)}</span
+								>
+								of {formatCount(totalSpeciesCount)} taxa
 							{:else}
 								· {formatCount(totalSpeciesCount)} taxa
 							{/if}
@@ -136,8 +138,8 @@
 					showGeographicFilter={false}
 					searchPlaceholder="Search"
 					emptyMessage="No matching taxonomy nodes found."
-					getNodeBadges={getNodeBadges}
-					getSpeciesDetailSource={getSpeciesDetailSource}
+					{getNodeBadges}
+					{isNodeClickable}
 					onSummaryChange={handleBrowserSummaryChange}
 				/>
 			{:else}

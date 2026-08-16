@@ -158,18 +158,20 @@ function createSpeciesNode(row: SpeciesRow): TaxonomyNodeNormalized {
 	const genus = normalizeTaxonomyValue(row.genus);
 	const uses = SPECIES_USE_ORDER.filter((useKey) =>
 		Boolean(
-			({
-				humanFood: row.use_human_food,
-				animalFood: row.use_animal_food,
-				environmentalUses: row.use_environmental,
-				fuels: row.use_fuels,
-				geneSources: row.use_gene_sources,
-				invertebrateFood: row.use_invertebrate_food,
-				materials: row.use_materials,
-				medicines: row.use_medicines,
-				poisons: row.use_poisons,
-				socialUses: row.use_social_uses
-			} as Record<SpeciesUseKey, boolean>)[useKey]
+			(
+				{
+					humanFood: row.use_human_food,
+					animalFood: row.use_animal_food,
+					environmentalUses: row.use_environmental,
+					fuels: row.use_fuels,
+					geneSources: row.use_gene_sources,
+					invertebrateFood: row.use_invertebrate_food,
+					materials: row.use_materials,
+					medicines: row.use_medicines,
+					poisons: row.use_poisons,
+					socialUses: row.use_social_uses
+				} as Record<SpeciesUseKey, boolean>
+			)[useKey]
 		)
 	);
 	const lifeforms = row.lifeform?.trim() ? [row.lifeform.trim()] : [];
@@ -191,6 +193,11 @@ function createSpeciesNode(row: SpeciesRow): TaxonomyNodeNormalized {
 		wcfpId: row.wcfp_id,
 		...(row.authors ? { authors: row.authors } : {}),
 		hasDistribution: true,
+		// Worldwide, not in-region: this is what the species' own distribution map will show, and
+		// it is what gates the "N areas" action on the row.
+		...(row.distribution_area_count && row.distribution_area_count > 0
+			? { distributionAreaCount: row.distribution_area_count }
+			: {}),
 		...(lifeforms.length > 0 || uses.length > 0 || hasCwr || occurrenceStatus
 			? {
 					traits: {
@@ -226,10 +233,7 @@ function finalizeProjectedNodes(
 	}));
 }
 
-function buildExpandedIds(
-	nodes: readonly TaxonomyNodeNormalized[],
-	startFromId: string
-): string[] {
+function buildExpandedIds(nodes: readonly TaxonomyNodeNormalized[], startFromId: string): string[] {
 	const includedIds = new Set(nodes.map((node) => node.id));
 	const expanded = new Set<string>();
 
@@ -242,7 +246,9 @@ function buildExpandedIds(
 	return [...expanded].filter((id) => id !== ROOT_ID || startFromId === ROOT_ID);
 }
 
-function parseParentId(parentId: string):
+function parseParentId(
+	parentId: string
+):
 	| { rank: 'root' }
 	| { rank: 'family'; family: string }
 	| { rank: 'genus'; family: string; genus: string }
@@ -495,7 +501,10 @@ export async function queryRegionTaxonomy(
 				}
 			}
 
-			async function getGenusRow(family: string, genus: string): Promise<RegionTaxonomyGenusRow | null> {
+			async function getGenusRow(
+				family: string,
+				genus: string
+			): Promise<RegionTaxonomyGenusRow | null> {
 				const key = `${family}::${genus}`;
 				const cached = genusByKey.get(key);
 				if (cached) {

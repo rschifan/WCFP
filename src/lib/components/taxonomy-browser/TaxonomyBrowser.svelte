@@ -3,12 +3,8 @@
 	import { fade } from 'svelte/transition';
 	import TaxonomySearchFilterBar from '$lib/components/map/TaxonomySearchFilterBar.svelte';
 	import TaxonomyList from '$lib/components/visualization/TaxonomyList.svelte';
-	import type { SpeciesDetailSource } from '$lib/components/hierarchy';
 	import type { HierarchyEntryBadge } from '$lib/types/hierarchy';
-	import type {
-		TaxonomyBrowserSource,
-		TaxonomyBrowserSummary
-	} from '$lib/types/taxonomy-browser';
+	import type { TaxonomyBrowserSource, TaxonomyBrowserSummary } from '$lib/types/taxonomy-browser';
 	import type { TaxonomyNodeNormalized } from '$lib/types/taxonomy';
 	import { createTaxonomyBrowserController } from './controller';
 
@@ -25,7 +21,6 @@
 		onSummaryChange?: (summary: TaxonomyBrowserSummary) => void;
 		isNodeClickable?: (node: TaxonomyNodeNormalized) => boolean;
 		getNodeBadges?: (node: TaxonomyNodeNormalized) => readonly HierarchyEntryBadge[] | undefined;
-		getSpeciesDetailSource?: (node: TaxonomyNodeNormalized) => SpeciesDetailSource | null | undefined;
 	}
 
 	let {
@@ -39,8 +34,7 @@
 		onNodeSelect,
 		onSummaryChange,
 		isNodeClickable,
-		getNodeBadges,
-		getSpeciesDetailSource
+		getNodeBadges
 	}: Props = $props();
 
 	const controller = createTaxonomyBrowserController();
@@ -87,8 +81,7 @@
 	});
 
 	$effect(() => {
-		const isLoading =
-			bootstrapState.status === 'loading' || bootstrapState.status === 'idle';
+		const isLoading = bootstrapState.status === 'loading' || bootstrapState.status === 'idle';
 		if (!isLoading) {
 			showLoadingUi = false;
 			return;
@@ -111,7 +104,7 @@
 			onSearchChange={controller.searchInput.setQuery}
 			onClearSearch={controller.searchInput.clear}
 			{searchStatus}
-			searchError={searchError}
+			{searchError}
 			{filters}
 			{availableLifeforms}
 			{showGeographicFilter}
@@ -121,9 +114,7 @@
 
 	{#if bootstrapState.status === 'loading' || bootstrapState.status === 'idle'}
 		<div class="relative flex-1 bg-white">
-			<div
-				class="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-slate-100"
-			>
+			<div class="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden bg-slate-100">
 				<div class="app-progress-stripe h-full w-1/3 bg-slate-400/60"></div>
 			</div>
 			{#if showLoadingUi}
@@ -142,7 +133,9 @@
 		</div>
 	{:else if bootstrapState.status === 'error'}
 		<div class="flex flex-1 items-center justify-center bg-white p-6">
-			<div class="max-w-md rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-900 shadow-sm">
+			<div
+				class="max-w-md rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-900 shadow-sm"
+			>
 				<p class="font-semibold">Unable to load taxonomy</p>
 				<p class="mt-2 text-sm">{bootstrapState.message}</p>
 			</div>
@@ -165,7 +158,6 @@
 					{isNodeClickable}
 					{selectedNodeId}
 					{getNodeBadges}
-					{getSpeciesDetailSource}
 					highlightQuery={searchQuery}
 				/>
 			</div>

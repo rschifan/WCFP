@@ -4,17 +4,13 @@ import type {
 	HierarchyEntryBadge,
 	HierarchyEntryModel
 } from '$lib/types/hierarchy';
-import type { Species } from '$lib/types/species';
-import type { SpeciesDetailController } from './species-detail-state';
 
 export const OPEN_MAP_ACTION_ID = 'open-map';
-
-export type SpeciesDetailSource = { species: Species } | { wcfpId: number };
 
 interface SpeciesMapActionConfig {
 	enabled: boolean;
 	areaCount: number;
-	onOpenMap: () => void;
+	onOpenMap: (trigger?: HTMLElement | null) => void;
 }
 
 interface SpeciesRowInteractionConfig {
@@ -23,15 +19,16 @@ interface SpeciesRowInteractionConfig {
 	subtitle?: string;
 	badges?: readonly HierarchyEntryBadge[];
 	selected?: boolean;
-	detailSource: SpeciesDetailSource;
-	detailController: SpeciesDetailController;
 	appearance?: Pick<HierarchyEntryModel, 'titleTone' | 'titleStyle' | 'titleWeight'>;
+	/** Opens the record. The row itself is the target, so this always exists. */
+	onOpenDetails: (trigger?: HTMLElement | null) => void;
+	/** Opens the same record on its map. Absent when the species has no recorded areas. */
 	mapAction?: SpeciesMapActionConfig;
 }
 
 export interface SpeciesRowInteraction {
 	entry: HierarchyEntryModel;
-	onRowClick: (trigger?: HTMLElement | null) => void | Promise<void>;
+	onRowClick: (trigger?: HTMLElement | null) => void;
 	onAction: HierarchyEntryActionHandler;
 }
 
@@ -47,30 +44,19 @@ function buildMapAction(title: string, mapAction?: SpeciesMapActionConfig): Hier
 			id: OPEN_MAP_ACTION_ID,
 			kind: 'button',
 			label: areaLabel,
-			ariaLabel: `Open map for ${title} across ${areaLabel}`,
-			tooltip: `Open map for ${title}`,
+			ariaLabel: `Open the distribution map for ${title}, ${areaLabel}`,
+			tooltip: `Open the distribution map for ${title}`,
 			tone: 'inline'
 		}
 	];
 }
 
-async function openDetails(
-	controller: SpeciesDetailController,
-	detailSource: SpeciesDetailSource,
-	trigger?: HTMLElement | null
-) {
-	try {
-		if ('species' in detailSource) {
-			controller.openFromSpecies(detailSource.species, trigger);
-			return;
-		}
-
-		await controller.openById(detailSource.wcfpId, trigger);
-	} catch (error) {
-		console.error('[SpeciesRowInteraction] Failed to open species details:', error);
-	}
-}
-
+/**
+ * One species row, two targets: the row opens the record, the area count opens its map.
+ *
+ * Both land in the same scheda on different tabs, so the row never has to choose which of the
+ * two things a reader wanted.
+ */
 export function createSpeciesRowInteraction(
 	config: SpeciesRowInteractionConfig
 ): SpeciesRowInteraction {
@@ -90,10 +76,10 @@ export function createSpeciesRowInteraction(
 
 	return {
 		entry,
-		onRowClick: (trigger) => openDetails(config.detailController, config.detailSource, trigger),
-		onAction: (action) => {
+		onRowClick: (trigger) => config.onOpenDetails(trigger),
+		onAction: (action, _entry, trigger) => {
 			if (action.id === OPEN_MAP_ACTION_ID) {
-				config.mapAction?.onOpenMap();
+				config.mapAction?.onOpenMap(trigger);
 			}
 		}
 	};

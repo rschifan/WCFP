@@ -1,29 +1,40 @@
 name: Deploy
 
-# Rewritten 2026-08-16 for adapter-node, replacing a workflow that had been disarmed because it
-# would have destroyed the live site. What it used to do, and what changed:
+# Rewritten 2026-08-16 for adapter-node, replacing a workflow that had been disarmed (4b3c54d)
+# because running it would have taken the site down. What changed, against each fault in that
+# commit's note:
 #
 #   * It ran only `pnpm build`, so a red type gate still deployed.
-#     -> `pnpm check` and `pnpm test` now gate the build, and the job stops if either fails.
+#     -> `pnpm check` and `pnpm test` gate the build.
 #
-#   * It rsynced `build/` over $SSH_REMOTE_PATH (the static docroot, /var/www/wcfp/html) with
-#     `--delete`. Under adapter-node `build/` holds a Node server — index.js, handler.js — not a
-#     site, so that replaced the served files with something no static server can serve.
-#     -> It now ships to SSH_APP_PATH, an application directory, and never touches the docroot.
+#   * It rsynced `build/` over the static docroot with `--delete`. Under adapter-node `build/`
+#     holds a Node server — index.js, handler.js — not a site, so that replaced the served files
+#     with something no static server can serve.
+#     -> Deploys go to SSH_APP_PATH, and the job refuses to start if that looks like a docroot.
 #
-#   * `--delete` would also have removed anything already living there, including the 180 MB
-#     DuckDB the app reads.
-#     -> `data/` and `node_modules/` are excluded, so a deploy cannot delete the database.
+#   * `--delete` would also have removed the 180 MB DuckDB the app reads.
+#     -> The database lives outside every release and is symlinked in, so a deploy cannot see it,
+#        let alone delete it.
 #
 #   * "Verify deployment" piped `find` into `head`, so the step's exit status was head's — it
 #     reported success over a destroyed site.
-#     -> Verification is a real HTTP check that fails the job on a bad status.
+#     -> Verification is an HTTP check that fails the job, and rolls back before it does.
 #
-#   * adapter-node needs its process restarted to pick up a new build; nothing restarted it.
-#     -> The service is restarted, then health-checked.
+#   * adapter-node needs its process restarted to pick up a build; nothing restarted it.
+#     -> The service is restarted as part of activation.
 #
-# STILL MANUAL, DELIBERATELY. The `push` trigger stays off until this has been proven against a
-# staging target. Arming it is a separate decision, not a side effect of this rewrite.
+# The server layout this expects, created on first run:
+#
+#   $SSH_APP_PATH/
+#     data/                    persistent, shared by every release; never written by a deploy
+#     releases/<id>/           one directory per deploy, with its own node_modules
+#     current -> releases/<id> what the service runs; swapped atomically
+#
+# The systemd unit's WorkingDirectory must be $SSH_APP_PATH/current, and it must follow the
+# symlink at start rather than resolving it once.
+#
+# STILL MANUAL, DELIBERATELY. The `push` trigger stays off, and the workflow is additionally
+# disabled at the GitHub API layer, until a dispatch run has been proven against the real host.
 
 on:
   workflow_dispatch:
@@ -32,6 +43,10 @@ on:
         description: 'Type "deploy" to confirm you intend to update the live site'
         required: true
         default: ''
+      keep_releases:
+        description: 'How many past releases to retain for rollback'
+        required: false
+        default: '5'
 
 permissions:
   contents: read
@@ -70,7 +85,7 @@ jobs:
               missing=1
             fi
           done
-          # SSH_APP_PATH must not be the static docroot the old workflow overwrote.
+          # Must not be the static docroot the disarmed workflow overwrote.
           case "${SSH_APP_PATH:-}" in
             */html|*/html/) echo "::error::SSH_APP_PATH looks like the web docroot. Deploy the Node app elsewhere."; missing=1 ;;
           esac
@@ -78,6 +93,9 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Name this release
+        run: echo "RELEASE_ID=$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -93,7 +111,7 @@ jobs:
           run_install: false
 
       - name: Get pnpm store directory
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
@@ -105,8 +123,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # The gates the old workflow skipped. A deploy that ships a red build is worse than no
-      # deploy, because it looks like it worked.
+      # The gates the disarmed workflow skipped. Shipping a red build is worse than not
+      # shipping, because it looks like it worked.
       - name: Type check
         run: pnpm check
 
@@ -119,9 +137,8 @@ jobs:
       - name: Verify build is an adapter-node server
         run: |
           set -euo pipefail
-          test -f build/index.js || { echo "::error::build/index.js missing — is the adapter still adapter-node?"; exit 1; }
-          echo "Build looks correct:"
-          ls -la build/
+          test -f build/index.js \
+            || { echo "::error::build/index.js missing — is the adapter still adapter-node?"; exit 1; }
 
       - name: Setup SSH key
         run: |
@@ -135,44 +152,120 @@ jobs:
           ssh-keyscan -H -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Ship the server bundle
-        run: |
-          set -euo pipefail
-          # --delete keeps the app directory honest, but data/ holds the DuckDB the app reads and
-          # node_modules/ is installed server-side; neither is ours to remove.
-          rsync -az --delete --human-readable \
-            --exclude 'data/' \
-            --exclude 'node_modules/' \
-            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }}" \
-            build/ package.json pnpm-lock.yaml \
-            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_APP_PATH }}/"
-
-      - name: Install production dependencies and restart
+      - name: Prepare release directory on the host
+        env:
+          APP_PATH: ${{ secrets.SSH_APP_PATH }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || 22 }}" \
             "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
-            "set -euo pipefail
-             cd '${{ secrets.SSH_APP_PATH }}'
-             corepack enable
-             pnpm install --prod --frozen-lockfile
-             sudo systemctl restart '${{ secrets.SERVICE_NAME || 'wcfp' }}'
-             sudo systemctl is-active --quiet '${{ secrets.SERVICE_NAME || 'wcfp' }}'"
+            "APP_PATH='$APP_PATH' RELEASE_ID='$RELEASE_ID' bash -s" <<'REMOTE'
+          set -euo pipefail
+          mkdir -p "$APP_PATH/releases/$RELEASE_ID" "$APP_PATH/data"
+          REMOTE
 
-      - name: Health check
+      - name: Upload the server bundle
+        env:
+          APP_PATH: ${{ secrets.SSH_APP_PATH }}
+        run: |
+          set -euo pipefail
+          # A fresh directory per release, so no --delete and nothing to clobber. The database
+          # is not here at all; it is linked in during activation.
+          rsync -az --human-readable \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }}" \
+            build/ package.json pnpm-lock.yaml \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:$APP_PATH/releases/$RELEASE_ID/"
+
+      - name: Activate release
+        env:
+          APP_PATH: ${{ secrets.SSH_APP_PATH }}
+          SERVICE: ${{ secrets.SERVICE_NAME || 'wcfp' }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || 22 }}" \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            "APP_PATH='$APP_PATH' RELEASE_ID='$RELEASE_ID' SERVICE='$SERVICE' bash -s" <<'REMOTE'
+          set -euo pipefail
+          release="$APP_PATH/releases/$RELEASE_ID"
+
+          # Remember what to fall back to before anything moves.
+          previous="$(readlink "$APP_PATH/current" 2>/dev/null || true)"
+          printf '%s\n' "$previous" > "$APP_PATH/.previous_release"
+          echo "Previous release: ${previous:-<none>}"
+
+          # The shared database, linked rather than copied: a release can read it and can never
+          # delete it, and 180 MB is not shipped on every deploy.
+          ln -sfn "$APP_PATH/data" "$release/data"
+
+          cd "$release"
+          corepack enable
+          pnpm install --prod --frozen-lockfile
+
+          # Atomic swap: mv -T over a symlink is a rename, so the service never observes a
+          # missing or half-written `current`.
+          ln -sfn "releases/$RELEASE_ID" "$APP_PATH/.current.tmp"
+          mv -Tf "$APP_PATH/.current.tmp" "$APP_PATH/current"
+
+          sudo systemctl restart "$SERVICE"
+          sudo systemctl is-active --quiet "$SERVICE"
+          echo "Activated $RELEASE_ID"
+          REMOTE
+
+      - name: Health check, rolling back on failure
+        env:
+          APP_PATH: ${{ secrets.SSH_APP_PATH }}
+          SERVICE: ${{ secrets.SERVICE_NAME || 'wcfp' }}
         run: |
           set -euo pipefail
           url="${{ secrets.HEALTHCHECK_URL }}"
-          # Give the service a moment to bind, then require a 200. Unlike the old `find | head`,
-          # a failure here fails the job.
+
           for attempt in 1 2 3 4 5 6; do
             status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)
             echo "Attempt $attempt: HTTP $status"
-            [ "$status" = "200" ] && exit 0
+            if [ "$status" = "200" ]; then
+              echo "Healthy."
+              exit 0
+            fi
             sleep 5
           done
-          echo "::error::Health check never returned 200 for $url — the site may be down."
+
+          echo "::error::Health check never returned 200 for $url — rolling back."
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || 22 }}" \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            "APP_PATH='$APP_PATH' SERVICE='$SERVICE' bash -s" <<'REMOTE'
+          set -euo pipefail
+          previous="$(cat "$APP_PATH/.previous_release" 2>/dev/null || true)"
+          if [ -z "$previous" ]; then
+            echo "No previous release recorded — leaving the new one in place for inspection."
+            exit 0
+          fi
+          ln -sfn "$previous" "$APP_PATH/.current.tmp"
+          mv -Tf "$APP_PATH/.current.tmp" "$APP_PATH/current"
+          sudo systemctl restart "$SERVICE"
+          echo "Rolled back to $previous"
+          REMOTE
           exit 1
+
+      - name: Prune old releases
+        if: success()
+        env:
+          APP_PATH: ${{ secrets.SSH_APP_PATH }}
+          KEEP: ${{ inputs.keep_releases }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || 22 }}" \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            "APP_PATH='$APP_PATH' KEEP='$KEEP' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$APP_PATH/releases"
+          live="$(basename "$(readlink "$APP_PATH/current")")"
+          # Release ids sort chronologically, so the newest KEEP are simply the last KEEP.
+          # The live release is never a candidate, whatever its age.
+          ls -1 | grep -v "^${live}$" | sort | head -n "-${KEEP}" | while read -r old; do
+            echo "Removing old release: $old"
+            rm -rf -- "$old"
+          done
+          REMOTE
 
       - name: Cleanup SSH key
         if: always()

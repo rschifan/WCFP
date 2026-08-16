@@ -47,11 +47,20 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      # persist-credentials: false because this runner's workspace is not ephemeral. The default
+      # writes the job token into .git/config, where it would sit on disk between runs.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
+      - name: Enable Corepack
+        run: corepack enable
+
+      # No `version:` input — package.json pins packageManager, and setting both makes
+      # pnpm/action-setup fail with "Multiple versions of pnpm specified". Same as ci.yml.
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          run_install: false
 
       - uses: actions/setup-node@v4
         with:
@@ -71,17 +80,19 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # readlink -e, not -f: -f canonicalises a path whose last component does not exist and still
+      # succeeds, so a missing `current` would be recorded as a rollback target that cannot work.
       - name: Record what is live
         id: prev
         run: |
-          echo "release=$(readlink -f "$APP/current" || echo none)" >> "$GITHUB_OUTPUT"
+          echo "release=$(readlink -e "$APP/current" || echo none)" >> "$GITHUB_OUTPUT"
 
       # The one check that catches a code/database mismatch before it reaches a reader. Add a
       # column here when a query starts depending on it.
       - name: Verify the live database has the columns this release queries
         run: |
           set -euo pipefail
-          DB=$(readlink -f "$APP/shared/wcfp.duckdb")
+          DB=$(readlink -e "$APP/shared/wcfp.duckdb") || { echo "::error::$APP/shared/wcfp.duckdb does not resolve to a file."; exit 1; }
           echo "Checking $DB"
           for col in cultivated cwr use_human_food source_link; do
             duckdb -readonly "$DB" \
@@ -94,18 +105,30 @@ jobs:
           done
           echo "Schema satisfies this release."
 
+      # Staged beside the target and renamed into place, never written over it. A workflow_dispatch
+      # re-run produces the same SHA and so the same release path — clearing that path first would
+      # delete the directory the running service is executing from.
       - name: Stage the release
         id: stage
         run: |
           set -euo pipefail
           SHA=$(git rev-parse --short HEAD)
           RELEASE="$APP/releases/$SHA"
-          rm -rf "$RELEASE"
-          mkdir -p "$RELEASE"
-          cp -R build/. "$RELEASE/"
-          cp package.json pnpm-lock.yaml "$RELEASE/"
-          cd "$RELEASE"
-          pnpm install --prod --frozen-lockfile
+          STAGING="$APP/releases/.staging-$SHA-$GITHUB_RUN_ID"
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R build/. "$STAGING/"
+          cp package.json pnpm-lock.yaml "$STAGING/"
+          ( cd "$STAGING" && pnpm install --prod --frozen-lockfile )
+
+          # If this SHA is already live, keep its directory and publish under a run-suffixed name;
+          # the old directory is pruned later, once nothing points at it.
+          if [ "$(readlink -e "$APP/current" || true)" = "$RELEASE" ]; then
+            RELEASE="$RELEASE-$GITHUB_RUN_ID"
+          else
+            rm -rf "$RELEASE"
+          fi
+          mv -T "$STAGING" "$RELEASE"
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
 
       # A rename, so the service never observes a missing or half-written `current`.
@@ -148,7 +171,7 @@ jobs:
         if: success()
         run: |
           set -euo pipefail
-          LIVE=$(basename "$(readlink -f "$APP/current")")
+          LIVE=$(basename "$(readlink -e "$APP/current")")
           { ls -1t "$APP/releases" | tail -n +6 | grep -v "^${LIVE}$" || true; } \
             | sed "s|^|$APP/releases/|" | xargs -r rm -rf
           ls -1t "$APP/releases"

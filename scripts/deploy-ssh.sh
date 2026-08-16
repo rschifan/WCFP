@@ -30,7 +30,11 @@ PROBE=${PROBE:-https://wcfp.hpc4ai.unito.it/species/14370}
 SHA=$(git rev-parse --short HEAD)
 RELEASE="$APP/releases/$SHA"
 DB_LOCAL=data/wcfp.duckdb
-DB_REMOTE="$APP/shared/wcfp-$SHA.duckdb"
+# Named by content, not by commit. The database is not in git, so two deploys of the same commit
+# can carry different databases — keying on the SHA alone would overwrite the file the previous
+# release is still reading, and take away the rollback target at the same time.
+DB_SUM=$(shasum -a 256 "$DB_LOCAL" | awk '{print $1}')
+DB_REMOTE="$APP/shared/wcfp-${DB_SUM:0:12}.duckdb"
 
 say() { printf '\n\033[1m▶ %s\033[0m\n' "$1"; }
 remote() { ssh -o BatchMode=yes "$HOST" "$@"; }
@@ -40,7 +44,7 @@ git diff --quiet || { echo "Working tree is dirty. Commit or stash first."; exit
 
 say "Recording what is live now, for rollback"
 PREV_EXEC=$(remote "systemctl cat $SERVICE | sed -n 's/^ExecStart=//p'")
-PREV_DB=$(remote "readlink -f $APP/shared/wcfp.duckdb")
+PREV_DB=$(remote "readlink -e $APP/shared/wcfp.duckdb")
 echo "   release: $PREV_EXEC"
 echo "   database: $PREV_DB"
 
@@ -59,10 +63,23 @@ remote "cd $RELEASE && pnpm install --prod --frozen-lockfile --ignore-scripts=fa
 say "Uploading the database ($(du -h $DB_LOCAL | cut -f1))"
 rsync -az --info=progress2 -e 'ssh -o BatchMode=yes' "$DB_LOCAL" "$HOST:$DB_REMOTE"
 
-LOCAL_SUM=$(shasum -a 256 "$DB_LOCAL" | awk '{print $1}')
 REMOTE_SUM=$(remote "sha256sum $DB_REMOTE | awk '{print \$1}'")
-[ "$LOCAL_SUM" = "$REMOTE_SUM" ] || { echo "Database checksum mismatch — aborting before anything is swapped."; exit 1; }
+[ "$DB_SUM" = "$REMOTE_SUM" ] || { echo "Database checksum mismatch — aborting before anything is swapped."; exit 1; }
 echo "   checksum matches"
+
+# A checksum proves the bytes arrived, not that they are the right bytes. This release queries
+# columns that an older database will not have; catching that here means the swap never happens,
+# rather than the site serving 500s until someone opens the page.
+say "Checking the uploaded database against what this release queries"
+for col in cultivated cwr use_human_food source_link; do
+	remote "duckdb -readonly $DB_REMOTE 'SELECT $col FROM species LIMIT 1'" >/dev/null 2>&1 \
+		|| { echo "   species.$col missing — aborting, nothing swapped."; exit 1; }
+done
+for col in flora_richness pct_of_flora; do
+	remote "duckdb -readonly $DB_REMOTE 'SELECT $col FROM regions LIMIT 1'" >/dev/null 2>&1 \
+		|| { echo "   regions.$col missing — aborting, nothing swapped."; exit 1; }
+done
+echo "   schema satisfies this release"
 
 say "Activating"
 # Both swaps are renames, so the service never observes a half-written target.

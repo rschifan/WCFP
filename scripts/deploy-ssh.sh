@@ -64,11 +64,18 @@ as_owner "mkdir -p $RELEASE"
 rsync -az --delete --exclude node_modules "${RSYNC_AS_OWNER[@]}" -e 'ssh -o BatchMode=yes' build/ "$HOST:$RELEASE/"
 rsync -az "${RSYNC_AS_OWNER[@]}" -e 'ssh -o BatchMode=yes' package.json pnpm-lock.yaml "$HOST:$RELEASE/"
 
+# "svelte-kit: not found" here is expected and harmless: the `prepare` script calls svelte-kit,
+# which is a devDependency and so absent from a --prod install. package.json already ends that
+# script in `|| echo ''` for exactly this case.
 say "Installing production dependencies on the host"
 as_owner "cd $RELEASE && pnpm install --prod --frozen-lockfile 2>&1 | tail -5"
+as_owner "test -d $RELEASE/node_modules/duckdb" \
+	|| { echo "   duckdb did not install into the release — aborting, nothing swapped."; exit 1; }
 
-say "Uploading the database ($(du -h $DB_LOCAL | cut -f1))"
-rsync -az --info=progress2 "${RSYNC_AS_OWNER[@]}" -e 'ssh -o BatchMode=yes' "$DB_LOCAL" "$HOST:$DB_REMOTE"
+# --progress, not --info=progress2: recent macOS ships openrsync, which does not implement the
+# GNU --info flag. --progress is understood by both.
+say "Uploading the database ($(du -h $DB_LOCAL | cut -f1)) — this takes a few minutes"
+rsync -az --progress "${RSYNC_AS_OWNER[@]}" -e 'ssh -o BatchMode=yes' "$DB_LOCAL" "$HOST:$DB_REMOTE"
 
 REMOTE_SUM=$(remote "sha256sum $DB_REMOTE | awk '{print \$1}'")
 [ "$DB_SUM" = "$REMOTE_SUM" ] || { echo "Database checksum mismatch — aborting before anything is swapped."; exit 1; }

@@ -31,6 +31,8 @@ describe('/+page.svelte', () => {
 		await expect
 			.element(page.getByRole('link', { name: 'Start with Taxonomy' }))
 			.toBeInTheDocument();
-		await expect.element(page.getByText('26,622 taxa (26,419 species)')).toBeInTheDocument();
+		// The hero quotes the taxon count alone. The taxa/species distinction belongs on About,
+		// where there is room to say what separates the two frames.
+		await expect.element(page.getByText('26,622 taxa', { exact: true })).toBeInTheDocument();
 	});
 });

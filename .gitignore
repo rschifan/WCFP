@@ -80,7 +80,8 @@ vite.config.ts.timestamp-*
 docs/
 
 # The submitted manuscript, kept alongside the code for reference while the paper is in revision.
-references/
+# Anchored: an unanchored `references/` would also match src/lib/components/references/.
+/references/
 
 # Local agent instructions and tooling — never committed.
 CLAUDE.md

@@ -293,9 +293,12 @@ export interface ChecklistSummary {
  * Two conventions come from the paper rather than from a column:
  *
  * - **Taxa versus species.** There is no rank column; the workbook does not carry one. A record is
- *   a hybrid or a graft-chimaera when its accepted name opens with the `×` or `+` marker, which is
- *   how the paper defines the split ("the hybrid (×) and graft-chimaera (+) markers that appear as
- *   the first word of some accepted names"). It yields the paper's own 201 and 2.
+ *   a hybrid or a graft-chimaera when its accepted name carries the `×` or `+` marker, which is how
+ *   the paper defines the split. It yields the paper's own 201 and 2.
+ *
+ *   The marker is matched **anywhere in the name, deliberately**. Nothospecies carry it between
+ *   genus and epithet — `Achillea × serrata` — not at the front, so anchoring the match to the
+ *   first character finds 10 of the 201. Do not "tighten" this to a prefix.
  * - **Human food is the inclusion criterion, not a facet.** Only taxa with a documented human food
  *   use entered the checklist, so `uses.humanFood` equals `taxa` by construction. The other nine
  *   categories are additional uses, and presenting them as a distribution alongside human food

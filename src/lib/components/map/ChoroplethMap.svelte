@@ -310,7 +310,7 @@
 	// d3-zoom setup
 	// ---------------------------------------------------------------------------
 
-	// At k=1 the Natural Earth projection already fills the viewport — never zoom below that.
+	// At k=1 the Winkel Tripel projection already fills the viewport — never zoom below that.
 	// Both DOM mutations go directly to the element — zero Svelte reactivity in the hot path.
 	// translateExtent([[0,0],[w,h]]) locks the content to the viewport: at k=1 panning is
 	// impossible; at k>1 the user can pan exactly as far as the map overflows the viewport.

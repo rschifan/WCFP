@@ -110,10 +110,7 @@
 						<p class="mt-6 text-lg leading-8 text-slate-100 md:text-xl md:leading-9">
 							The WCFP 2026 is the most comprehensive <b class="underline"
 								>global inventory of food plant taxa</b
-							>, covering
-							<b class="underline"
-								>{formatCount(summary.taxa)} taxa ({formatCount(summary.species)} species)</b
-							>
+							>, covering <b class="underline">{formatCount(summary.taxa)} taxa</b>
 							across <b class="underline">{formatCount(summary.genera)} genera</b>
 							and <b class="underline">{formatCount(summary.families)} families</b>, both cultivated
 							and wild.

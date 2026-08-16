@@ -39,16 +39,19 @@ remote "sudo install -d -o $RUNNER_USER -g $RUNNER_USER /srv/wcfp"
 # Scoped sudo: restart this one service, nothing more.
 remote "printf '%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart $SERVICE, /usr/bin/systemctl status $SERVICE\n' $RUNNER_USER | sudo tee /etc/sudoers.d/$RUNNER_USER >/dev/null && sudo chmod 0440 /etc/sudoers.d/$RUNNER_USER && sudo visudo -c -f /etc/sudoers.d/$RUNNER_USER"
 
+# Every `cd` below runs inside the sudo, not before it. useradd --create-home makes /home/wcfp
+# 0750, so a bare `cd $RUNNER_DIR` executes as ubuntu and fails with "Permission denied" before
+# sudo is ever reached.
 say "Installing the runner ($RUNNER_VERSION)"
 remote "sudo -u $RUNNER_USER mkdir -p $RUNNER_DIR"
-remote "cd $RUNNER_DIR && sudo -u $RUNNER_USER curl -fsSL -o runner.tar.gz https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz && sudo -u $RUNNER_USER tar xzf runner.tar.gz && sudo -u $RUNNER_USER rm runner.tar.gz"
-remote "sudo $RUNNER_DIR/bin/installdependencies.sh >/dev/null"
+remote "sudo -u $RUNNER_USER bash -c 'cd $RUNNER_DIR && curl -fsSL -o runner.tar.gz https://github.com/actions/runner/releases/download/v$RUNNER_VERSION/actions-runner-linux-x64-$RUNNER_VERSION.tar.gz && tar xzf runner.tar.gz && rm runner.tar.gz'"
+remote "sudo bash -c '$RUNNER_DIR/bin/installdependencies.sh' >/dev/null"
 
 say "Registering with $REPO"
-remote "cd $RUNNER_DIR && sudo -u $RUNNER_USER ./config.sh --unattended --replace --url https://github.com/$REPO --token '$TOKEN' --name wcfp.hpc4ai --labels self-hosted,wcfp --work _work"
+remote "sudo -u $RUNNER_USER bash -c 'cd $RUNNER_DIR && ./config.sh --unattended --replace --url https://github.com/$REPO --token \"$TOKEN\" --name wcfp.hpc4ai --labels self-hosted,wcfp --work _work'"
 
 say "Installing it as a service"
-remote "cd $RUNNER_DIR && sudo ./svc.sh install $RUNNER_USER && sudo ./svc.sh start"
+remote "sudo bash -c 'cd $RUNNER_DIR && ./svc.sh install $RUNNER_USER && ./svc.sh start'"
 
 say "The workflow needs duckdb and pnpm on PATH for that user"
 remote "sudo -u $RUNNER_USER bash -lc 'command -v duckdb >/dev/null || echo MISSING_DUCKDB; command -v node >/dev/null || echo MISSING_NODE'"

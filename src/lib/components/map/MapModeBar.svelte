@@ -23,7 +23,7 @@
 </script>
 
 <div
-	class="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 border-b border-slate-200 bg-white px-6 py-2"
+	class="flex flex-wrap items-center justify-center gap-x-1 gap-y-2 bg-white px-6 py-2"
 	role="radiogroup"
 	aria-label="Colour the map by"
 	aria-busy={loading}

@@ -1,13 +1,12 @@
 <script lang="ts">
 	import {
 		HierarchyEntryRow,
-		SpeciesDetailHost,
-		createSpeciesDetailController,
 		createSpeciesRowInteraction,
-		type SpeciesDetailSource,
 		getTaxonomicEntryAppearance,
 		taxonomyBrowserPreset
 	} from '$lib/components/hierarchy';
+	import TaxonSchedaDialog from '$lib/components/taxon/TaxonSchedaDialog.svelte';
+	import type { SchedaView } from '$lib/components/taxon/TaxonScheda.svelte';
 	import type { HierarchyEntryBadge, HierarchyEntryModel } from '$lib/types/hierarchy';
 	import type { TaxonomyNodeNormalized, TaxonomyTreeIndex } from '$lib/types/taxonomy';
 
@@ -21,7 +20,6 @@
 		onNodeSelect?: (node: TaxonomyNodeNormalized, path: string) => void;
 		class?: string;
 		isNodeClickable?: (node: TaxonomyNodeNormalized) => boolean;
-		getSpeciesDetailSource?: (node: TaxonomyNodeNormalized) => SpeciesDetailSource | null | undefined;
 		selectedNodeId?: string;
 		getNodeBadges?: (node: TaxonomyNodeNormalized) => readonly HierarchyEntryBadge[] | undefined;
 		highlightQuery?: string;
@@ -37,7 +35,6 @@
 		onNodeSelect,
 		class: className = '',
 		isNodeClickable,
-		getSpeciesDetailSource,
 		selectedNodeId: externalSelectedNodeId,
 		getNodeBadges,
 		highlightQuery = ''
@@ -53,8 +50,24 @@
 		const startNode = nodesById.get(rootId);
 		return startNode ? [...startNode.childrenIds] : [];
 	});
-	const detailController = createSpeciesDetailController();
+	// The list owns the scheda, so every surface that renders a taxonomy tree — the region panel
+	// and the taxonomy browser alike — gets the same dialog from the same gestures.
+	let schedaTaxon = $state<TaxonomyNodeNormalized | null>(null);
+	let schedaView = $state<SchedaView>('overview');
+	let schedaTrigger = $state<HTMLElement | null>(null);
 	let selectedId = $state<string | null>(null);
+
+	function openScheda(
+		node: TaxonomyNodeNormalized,
+		nodeId: string,
+		view: SchedaView,
+		trigger?: HTMLElement | null
+	) {
+		selectNode(node, nodeId);
+		schedaView = view;
+		schedaTrigger = trigger ?? null;
+		schedaTaxon = node;
+	}
 
 	$effect(() => {
 		if (externalSelectedNodeId !== undefined && externalSelectedNodeId !== selectedId) {
@@ -127,22 +140,19 @@
 			return null;
 		}
 
-		const detailSource = getSpeciesDetailSource?.(node) ?? { wcfpId: node.wcfpId };
-
 		return createSpeciesRowInteraction({
 			id: nodeId,
 			title: node.name,
 			subtitle: node.authors,
 			badges,
 			selected,
-			detailSource,
-			detailController,
 			appearance,
+			onOpenDetails: (trigger) => openScheda(node, nodeId, 'overview', trigger),
 			mapAction: isClickable
 				? {
 						enabled: true,
 						areaCount: node.distributionAreaCount ?? 0,
-						onOpenMap: () => selectNode(node, nodeId)
+						onOpenMap: (trigger) => openScheda(node, nodeId, 'distribution', trigger)
 					}
 				: undefined
 		});
@@ -157,7 +167,7 @@
 		trigger?: HTMLElement | null
 	) {
 		if (speciesInteraction) {
-			void speciesInteraction.onRowClick(trigger);
+			speciesInteraction.onRowClick(trigger);
 			return;
 		}
 
@@ -166,8 +176,9 @@
 			return;
 		}
 
+		// A genus or family has no record to show, only where its species are.
 		if (isClickable) {
-			selectNode(node, nodeId);
+			openScheda(node, nodeId, 'distribution', trigger);
 		}
 	}
 
@@ -224,7 +235,7 @@
 			<HierarchyEntryRow
 				entry={speciesInteraction?.entry ?? entry}
 				preset={taxonomyBrowserPreset}
-				highlightQuery={highlightQuery}
+				{highlightQuery}
 				ariaDisabled={isLoading}
 				onRowClick={(trigger) =>
 					handleNodeRowClick(node, nodeId, hasKids, isClickable, speciesInteraction, trigger)}
@@ -265,5 +276,10 @@
 		{/each}
 	</ul>
 
-	<SpeciesDetailHost controller={detailController} />
+	<TaxonSchedaDialog
+		taxon={schedaTaxon}
+		initialView={schedaView}
+		returnFocusTo={schedaTrigger}
+		onClose={() => (schedaTaxon = null)}
+	/>
 </div>

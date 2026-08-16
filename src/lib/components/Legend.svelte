@@ -30,6 +30,14 @@
 		 * always one more colour than break.
 		 */
 		steps?: { breaks: readonly number[]; palette: readonly string[] };
+		/**
+		 * Present when the map encodes unordered categories rather than magnitude — a single
+		 * species' occurrence status. Swatches carry their own labels and there is no scale, so
+		 * `min`/`mid`/`max` are ignored.
+		 */
+		categories?: readonly { label: string; color: string }[];
+		/** False when the swatches already say what the legend is; `title` still labels it for AT. */
+		showTitle?: boolean;
 	}
 
 	let {
@@ -46,7 +54,9 @@
 		format,
 		noDataColor,
 		noDataLabel = 'No data',
-		steps
+		steps,
+		categories,
+		showTitle = true
 	}: Props = $props();
 
 	const subtitleId = $derived(
@@ -61,7 +71,9 @@
 		position === 'bottom-left' ? 'bottom-4 left-4' : position === 'bottom' ? 'bottom-2' : 'top-6'
 	);
 	const centerClass = $derived(position === 'bottom-left' ? '' : 'left-1/2 -translate-x-1/2');
-	const fmt = $derived((value: number) => (format ? format(value) : formatCountMaxDigits(value, maxDigits)));
+	const fmt = $derived((value: number) =>
+		format ? format(value) : formatCountMaxDigits(value, maxDigits)
+	);
 	const gradientStyle = $derived(
 		`background: linear-gradient(to right, ${colors.low} 0%, ${colors.mid} 50%, ${colors.high} 100%);`
 	);
@@ -74,15 +86,32 @@
 	aria-describedby={subtitle ? subtitleId : undefined}
 >
 	<div class="flex items-center gap-4 rounded-xl bg-white px-3 py-3 shadow-xl">
-		<div class="min-w-0">
-			<div class="text-sm font-semibold text-slate-800">{title}</div>
-			{#if subtitle}
-				<div class="text-xs text-slate-500" id={subtitleId}>{subtitle}</div>
-			{/if}
-		</div>
+		<!-- Swatch legends label themselves, so the heading is dropped rather than repeated. -->
+		{#if showTitle}
+			<div class="min-w-0">
+				<div class="text-sm font-semibold text-slate-800">{title}</div>
+				{#if subtitle}
+					<div class="text-xs text-slate-500" id={subtitleId}>{subtitle}</div>
+				{/if}
+			</div>
+		{/if}
 
 		<div class="flex flex-col gap-2">
-			{#if steps}
+			{#if categories}
+				<!-- Unordered categories: swatch plus label, no scale to read along. -->
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+					{#each categories as category (category.label)}
+						<span class="flex items-center gap-2 text-xs text-slate-600">
+							<span
+								class="h-3 w-3 rounded-sm border border-slate-300"
+								style={`background-color: ${category.color};`}
+								aria-hidden="true"
+							></span>
+							<span>{category.label}</span>
+						</span>
+					{/each}
+				</div>
+			{:else if steps}
 				<!-- Equal-count classes: the swatches are the scale, so no gradient and no midpoint. -->
 				<div class="flex w-60">
 					{#each steps.palette as color, index (index)}
@@ -97,33 +126,33 @@
 					<span class="flex-1 text-right tabular-nums">{fmt(max)}</span>
 				</div>
 			{:else}
-			<div class="relative">
-				<div class="h-2 w-60" style={gradientStyle}></div>
-				<div class="absolute top-1/2 left-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
-				<div class="absolute top-1/2 left-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
-				<div class="absolute top-1/2 right-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
-			</div>
+				<div class="relative">
+					<div class="h-2 w-60" style={gradientStyle}></div>
+					<div class="absolute top-1/2 left-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+					<div class="absolute top-1/2 left-1/2 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+					<div class="absolute top-1/2 right-0 h-2 w-px -translate-y-1/2 bg-slate-800"></div>
+				</div>
 
-			<div class="grid grid-cols-3 text-xs text-slate-600">
-				<div class="justify-self-start text-left">
-					<div class="font-bold text-slate-700">{fmt(min)}</div>
-					{#if showLevelLabels}
-						<div class="text-slate-500">Low</div>
-					{/if}
+				<div class="grid grid-cols-3 text-xs text-slate-600">
+					<div class="justify-self-start text-left">
+						<div class="font-bold text-slate-700">{fmt(min)}</div>
+						{#if showLevelLabels}
+							<div class="text-slate-500">Low</div>
+						{/if}
+					</div>
+					<div class="text-center">
+						<div class="font-bold text-slate-700">{fmt(mid)}</div>
+						{#if showLevelLabels}
+							<div class="text-slate-500">Medium</div>
+						{/if}
+					</div>
+					<div class="justify-self-end text-right">
+						<div class="font-bold text-slate-700">{fmt(max)}</div>
+						{#if showLevelLabels}
+							<div class="text-slate-500">High</div>
+						{/if}
+					</div>
 				</div>
-				<div class="text-center">
-					<div class="font-bold text-slate-700">{fmt(mid)}</div>
-					{#if showLevelLabels}
-						<div class="text-slate-500">Medium</div>
-					{/if}
-				</div>
-				<div class="justify-self-end text-right">
-					<div class="font-bold text-slate-700">{fmt(max)}</div>
-					{#if showLevelLabels}
-						<div class="text-slate-500">High</div>
-					{/if}
-				</div>
-			</div>
 			{/if}
 
 			{#if noDataColor}

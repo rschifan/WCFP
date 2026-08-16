@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+/*
+ * Tailwind's `dark` variant defaults to the reader's OS preference, and Skeleton's tokens are
+ * built on it. The rest of the portal hardcodes white and slate utilities that cannot follow,
+ * so an OS set to dark produced dark Skeleton chrome around light pages. Key the variant to an
+ * explicit `data-mode="dark"` instead — `src/app.html` pins light until the palette migration
+ * makes a real dark theme possible.
+ */
+@custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
+
 /* Skeleton UI base styles + theme */
 @import '@skeletonlabs/skeleton';
 @import '@skeletonlabs/skeleton/themes/cerberus';

@@ -9,6 +9,7 @@ import { query } from './database.js';
 import type { Connection } from 'duckdb';
 import type { Species, SpeciesUseKey } from '$lib/types/species';
 import type {
+	OccurrenceStatusFilter,
 	TaxonomicRank,
 	TaxonomyNodeNormalized,
 	TaxonomyTraitEntry
@@ -78,6 +79,11 @@ export interface SpeciesRow {
 	authors: string;
 	family: string;
 	genus: string;
+	/** Ranks above family, selected only by `getSpeciesById`. */
+	kingdom?: string;
+	phylum?: string;
+	class?: string;
+	order?: string;
 	lifeform: string | null;
 	cwr: boolean;
 	use_human_food: boolean;
@@ -95,6 +101,11 @@ export interface SpeciesRow {
 	uses_total: number;
 	/** Present only for region-scoped queries: this taxon's status in that region. */
 	occurrence_status?: OccurrenceStatus;
+	/**
+	 * Areas worldwide, not in this region — a per-region count would always be 1. Region-scoped
+	 * queries join it from `taxonomy_nodes` so the species row can offer its distribution map.
+	 */
+	distribution_area_count?: number;
 }
 
 export interface TaxonomyNodeRow {
@@ -130,6 +141,8 @@ export interface DistributionRow {
 	code: string;
 	name: string;
 	count?: number;
+	/** Species rows only. Higher ranks aggregate many species, so no single status applies. */
+	occurrenceStatus?: OccurrenceStatusFilter;
 }
 
 export function mapSpeciesRow(row: SpeciesRow): Species {
@@ -153,6 +166,10 @@ export function mapSpeciesRow(row: SpeciesRow): Species {
 		authors: row.authors,
 		family: row.family,
 		genus: row.genus,
+		...(row.kingdom ? { kingdom: row.kingdom } : {}),
+		...(row.phylum ? { phylum: row.phylum } : {}),
+		...(row.class ? { class: row.class } : {}),
+		...(row.order ? { order: row.order } : {}),
 		...(row.lifeform ? { lifeform: row.lifeform } : {}),
 		...(row.cwr ? { cwr: true } : {}),
 		...(uses ? { uses } : {}),
@@ -438,9 +455,10 @@ export async function getRegionTaxonomySpeciesRows(
 				s.use_animal_food, s.use_environmental, s.use_fuels, s.use_gene_sources,
 				s.use_invertebrate_food, s.use_materials, s.use_medicines,
 				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total,
-				d.occurrence_status
+				d.occurrence_status, n.distribution_area_count
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
+		 LEFT JOIN taxonomy_nodes n ON n.wcfp_id = s.wcfp_id AND n.rank = 'species'
 		 WHERE d.code = ?
 		   AND COALESCE(NULLIF(TRIM(s.family), ''), 'Unknown') = ?
 		   AND COALESCE(NULLIF(TRIM(s.genus), ''), 'Unknown') = ?
@@ -547,9 +565,10 @@ export async function queryRegionTaxonomyMatchedSpecies(
 				s.use_animal_food, s.use_environmental, s.use_fuels, s.use_gene_sources,
 				s.use_invertebrate_food, s.use_materials, s.use_medicines,
 				s.use_poisons, s.use_social_uses, s.source_link, s.references_all, s.uses_total,
-				d.occurrence_status
+				d.occurrence_status, n.distribution_area_count
 		 FROM distribution d
 		 JOIN species s USING (wcfp_id)
+		 LEFT JOIN taxonomy_nodes n ON n.wcfp_id = s.wcfp_id AND n.rank = 'species'
 		 WHERE ${conditions.join(' AND ')}
 		 ORDER BY s.family, s.genus, s.taxon_name
 		 LIMIT 500`,
@@ -617,7 +636,9 @@ export async function getSpeciesForRegion(
 
 /**
  * Distribution for a taxonomy node at a given rank.
- * Returns TDWG3 code → species count.
+ *
+ * Species carry an occurrence status per area (native, introduced, extinct, doubtful) and no
+ * count; higher ranks aggregate many species into a count and have no single status.
  *
  * @param rank    'species' | 'genus' | 'family' | 'order' | 'class' | 'phylum' | 'kingdom'
  * @param name    taxon name at that rank
@@ -636,11 +657,12 @@ export async function getDistributionForRank(
 		if (wcfpId === undefined) return [];
 		rows = await query<DistributionRow>(
 			conn,
-			`SELECT r.code, r.area AS name
+			// No GROUP BY: (wcfp_id, code) is unique in `distribution`, so grouping only
+			// masked occurrence_status. Native and introduced ranges must stay distinguishable.
+			`SELECT r.code, r.area AS name, d.occurrence_status AS "occurrenceStatus"
 			 FROM distribution d
 			 JOIN regions r USING (code)
 			 WHERE d.wcfp_id = ?
-			 GROUP BY r.code, r.area
 			 ORDER BY r.code`,
 			[wcfpId]
 		);
@@ -675,7 +697,11 @@ export async function getDistributionForRank(
 export async function getSpeciesById(conn: Connection, wcfpId: number): Promise<Species | null> {
 	const rows = await query<SpeciesRow>(
 		conn,
-		`SELECT wcfp_id, taxon_name, authors, family, genus, lifeform, cwr, use_human_food,
+		// The lineage columns are selected here and nowhere else: this is the record the scheda
+		// renders, and list queries have no use for ranks above family.
+		`SELECT wcfp_id, taxon_name, authors, family, genus,
+				kingdom, phylum, class, "order",
+				lifeform, cwr, use_human_food,
 				use_animal_food, use_environmental, use_fuels, use_gene_sources,
 				use_invertebrate_food, use_materials, use_medicines,
 				use_poisons, use_social_uses, source_link, references_all, uses_total

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { FeatureCollection, GeoJsonProperties, Feature } from 'geojson';
-	import { geoNaturalEarth1, geoPath } from 'd3-geo';
+	import { geoPath } from 'd3-geo';
+	import { fitWorld } from '$lib/map/projection';
 	import { zoom as d3zoom, zoomIdentity, zoomTransform } from 'd3-zoom';
 	import { select } from 'd3-selection';
 	import Legend from '../Legend.svelte';
@@ -210,12 +211,10 @@
 				rawCount = regionCode ? distributionData.get(regionCode) : undefined;
 			} else {
 				const preCount = p.unique_count;
-				const usable =
-					typeof preCount === 'number' && (zeroIsData ? preCount >= 0 : preCount > 0);
+				const usable = typeof preCount === 'number' && (zeroIsData ? preCount >= 0 : preCount > 0);
 				rawCount = usable ? (preCount as number) : undefined;
 			}
-			const hasData =
-				typeof rawCount === 'number' && (zeroIsData ? rawCount >= 0 : rawCount > 0);
+			const hasData = typeof rawCount === 'number' && (zeroIsData ? rawCount >= 0 : rawCount > 0);
 			if (hasData) counts.push(rawCount as number);
 
 			return {
@@ -243,7 +242,9 @@
 
 	// Quantile classification, computed once per data change rather than per polygon.
 	const classBreaks = $derived(
-		classification === 'quantile' ? computeQuantileBreaks(enriched.values, classCount, zeroIsData) : []
+		classification === 'quantile'
+			? computeQuantileBreaks(enriched.values, classCount, zeroIsData)
+			: []
 	);
 	const classPalette = $derived(
 		classification === 'quantile' ? classColors(effectiveColors, classCount) : []
@@ -274,15 +275,10 @@
 		const w = Math.max(width, PADDING * 2 + 1);
 		const h = Math.max(height, PADDING * 2 + 1);
 
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const fitTarget: any = fc.features.length > 0 ? fc : { type: 'Sphere' };
-		const proj = geoNaturalEarth1().fitExtent(
-			[
-				[PADDING, PADDING],
-				[w - PADDING, h - PADDING]
-			],
-			fitTarget
-		);
+		// The world map always frames the whole sphere, so the graticule stays put as the reader
+		// filters: fitting to whichever regions currently have data would shift the map underneath
+		// them. Winkel Tripel here and in the distribution maps, from one shared definition.
+		const proj = fitWorld({ width: w, height: h, padding: PADDING });
 		const pg = geoPath(proj);
 
 		const features: ProjectedFeature[] = fc.features.map((f: Feature) => {
@@ -339,8 +335,7 @@
 			event.preventDefault();
 			const t = zoomTransform(svgEl!);
 			// Same delta formula as d3-zoom internally (supports pixels / lines / pages mode).
-			const delta =
-				-event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
+			const delta = -event.deltaY * (event.deltaMode === 1 ? 0.05 : event.deltaMode ? 1 : 0.002);
 			const k1 = Math.max(1, Math.min(20, t.k * Math.pow(2, delta)));
 			if (k1 === t.k) return; // already at a scale extent boundary
 			const ratio = k1 / t.k;
@@ -430,10 +425,23 @@
 		mapReady = true;
 	});
 
-
 	// ---------------------------------------------------------------------------
 	// ResizeObserver
 	// ---------------------------------------------------------------------------
+
+	/**
+	 * Re-project once the resize has settled, and cross-fade across it.
+	 *
+	 * The region panel animates its width over ~220ms, and the observer fires every frame of
+	 * that. Each frame re-projects 368 features — around two megabytes of path data — which the
+	 * browser cannot do at frame rate, so the re-fit arrived as a stutter and then a jump.
+	 *
+	 * Waiting for the resize to stop means one re-projection instead of a dozen. The map holds
+	 * its old framing (clipped by the container) while the panel moves, then fades to the new
+	 * one, which reads as a transition rather than a glitch. The first measurement is applied
+	 * synchronously so the initial render is never wrong.
+	 */
+	const RESIZE_SETTLE_MS = 220;
 
 	$effect(() => {
 		if (!containerEl) return;
@@ -443,13 +451,27 @@
 		if (rect.width > 0) width = rect.width;
 		if (rect.height > 0) height = rect.height;
 
+		let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
 		const ro = new ResizeObserver((entries) => {
 			const r = entries[0].contentRect;
-			if (r.width > 0) width = r.width;
-			if (r.height > 0) height = r.height;
+			if (r.width <= 0 || r.height <= 0) return;
+			if (r.width === width && r.height === height) return;
+
+			// Fade out on the first frame of a resize, then re-project when it stops.
+			mapReady = false;
+			clearTimeout(settleTimer);
+			settleTimer = setTimeout(() => {
+				width = r.width;
+				height = r.height;
+			}, RESIZE_SETTLE_MS);
 		});
 		ro.observe(containerEl);
-		return () => ro.disconnect();
+
+		return () => {
+			clearTimeout(settleTimer);
+			ro.disconnect();
+		};
 	});
 
 	// ---------------------------------------------------------------------------
@@ -512,13 +534,7 @@
 				<path
 					d={feature.d}
 					fill={classification === 'quantile'
-						? classFillColor(
-								feature.count,
-								classBreaks,
-								classPalette,
-								palette.noData,
-								zeroIsData
-							)
+						? classFillColor(feature.count, classBreaks, classPalette, palette.noData, zeroIsData)
 						: computeFillColor(
 								feature.count,
 								countRange,
@@ -596,8 +612,8 @@
 							text-anchor="middle"
 							dominant-baseline="central"
 							fill="#1e293b"
-							style="user-select: none;"
-						>{feature.name}</text>
+							style="user-select: none;">{feature.name}</text
+						>
 					{/if}
 				{/each}
 			</g>

@@ -150,10 +150,7 @@
 					Distribution of edible plant taxa across 367 botanical regions.
 				</p>
 			</div>
-			<RegionSearchBox
-				onSelectRegion={handleSelectRegion}
-				onPreviewRegion={handlePreviewRegion}
-			/>
+			<RegionSearchBox onSelectRegion={handleSelectRegion} onPreviewRegion={handlePreviewRegion} />
 		</div>
 	</section>
 

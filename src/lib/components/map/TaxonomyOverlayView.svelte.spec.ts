@@ -237,7 +237,7 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 			false
 		);
 
-		const searchInput = page.getByPlaceholder('Search taxonomy...');
+		const searchInput = page.getByPlaceholder('Search');
 		await searchInput.fill('c');
 		await searchInput.fill('cy');
 		await searchInput.fill('cyc');
@@ -257,7 +257,7 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 
 		await expect.element(page.getByText('Browse Taxonomy')).toBeInTheDocument();
 
-		const searchInput = page.getByPlaceholder('Search taxonomy...');
+		const searchInput = page.getByPlaceholder('Search');
 		await searchInput.fill('cycas');
 
 		await expect.element(page.getByRole('button', { name: /^Cycadaceae/ })).toBeInTheDocument();
@@ -271,7 +271,7 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 			target: createTarget()
 		});
 
-		const searchInput = page.getByPlaceholder('Search taxonomy...');
+		const searchInput = page.getByPlaceholder('Search');
 		await searchInput.fill('cycas');
 		await expect.element(page.getByRole('button', { name: /^Cycas/ })).toBeInTheDocument();
 
@@ -306,7 +306,7 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 			target: createTarget()
 		});
 
-		await page.getByPlaceholder('Search taxonomy...').fill('cycas');
+		await page.getByPlaceholder('Search').fill('cycas');
 		await expect.element(page.getByText('Query failed')).toBeInTheDocument();
 	});
 
@@ -326,6 +326,21 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 				});
 			}
 
+			if (url.includes('/api/v1/species/42')) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							wcfpId: 42,
+							name: 'Asterus testus',
+							authors: 'Auth.',
+							family: 'Asteraceae',
+							genus: 'Asterus'
+						}
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			}
+
 			if (url.includes('/api/v1/distribution?rank=species&wcfp_id=42')) {
 				distributionRequestCount += 1;
 				return new Response(JSON.stringify({ data: [{ code: 'ITA' }] }), {
@@ -343,7 +358,7 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 
 		await expect.element(page.getByText('Browse Taxonomy')).toBeInTheDocument();
 
-		await page.getByRole('button', { name: 'Open map for Asterus testus across 1 area' }).click();
+		await page.getByRole('button', { name: 'Open the distribution map for Asterus testus, 1 area' }).click();
 
 		await expect.element(page.getByLabelText('Taxonomy distribution map')).toBeInTheDocument();
 		expect(distributionRequestCount).toBe(1);
@@ -366,6 +381,21 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 				});
 			}
 
+			if (url.includes('/api/v1/species/42')) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							wcfpId: 42,
+							name: 'Asterus testus',
+							authors: 'Auth.',
+							family: 'Asteraceae',
+							genus: 'Asterus'
+						}
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			}
+
 			if (url.includes('/api/v1/distribution?rank=species&wcfp_id=42')) {
 				distributionRequestCount += 1;
 				return new Response(JSON.stringify({ data: [{ code: 'ITA' }] }), {
@@ -381,10 +411,10 @@ describe('TaxonomyOverlayView taxonomy search', () => {
 			target: createTarget()
 		});
 
-		const openButton = page.getByRole('button', { name: 'Open map for Asterus testus across 1 area' });
+		const openButton = page.getByRole('button', { name: 'Open the distribution map for Asterus testus, 1 area' });
 		await openButton.click();
 		await expect.element(page.getByLabelText('Taxonomy distribution map')).toBeInTheDocument();
-		await page.getByRole('button', { name: 'Close panel' }).click();
+		await page.getByRole('button', { name: 'Close' }).click();
 		await openButton.click();
 		await expect.element(page.getByLabelText('Taxonomy distribution map')).toBeInTheDocument();
 		expect(distributionRequestCount).toBe(2);

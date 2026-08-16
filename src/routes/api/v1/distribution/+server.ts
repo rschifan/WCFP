@@ -10,7 +10,7 @@
  *   wcfp_id  - WCFP ID (required when rank=species)
  *
  * Response:
- *   rank=species    -> [{ code, name }]
+ *   rank=species    -> [{ code, name, occurrenceStatus }]
  *   other ranks     -> [{ code, name, count }]
  */
 

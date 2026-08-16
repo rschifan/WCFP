@@ -123,7 +123,7 @@
 		if (filters.geographicOnly) {
 			chips.push({
 				id: 'geographicOnly',
-				label: 'Geographic',
+				label: 'Mapped',
 				icon: Globe,
 				onRemove: toggleGeographicOnly
 			});
@@ -140,20 +140,21 @@
 	});
 
 	const sections = $derived.by((): FilterSectionModel[] => {
-		// "Geographic" keeps only taxa that have distribution records at all. Inside a region
-		// every listed taxon has them by construction, so the toggle cannot change the result
-		// there — it is offered only in the global taxonomy view, where 1,187 taxa lack them.
+		// "Mapped" keeps only taxa that have distribution records at all — the ones that can be
+		// drawn on a map. Inside a region every listed taxon has them by construction, so the
+		// toggle cannot change the result there; it is offered only in the global taxonomy view,
+		// where 1,187 taxa lack them.
 		const geographySection: FilterSectionModel = {
 			id: 'taxonomy-geographic',
-			title: 'Geographic',
+			title: 'Mapped',
 			kind: 'toggle-chip',
 			options: [
 				{
 					id: 'geographicOnly',
 					icon: Globe,
 					selected: filters.geographicOnly,
-					title: 'Show only nodes with geographical information',
-					ariaLabel: 'Show only nodes with geographical information'
+					title: 'Show only taxa that appear on the map',
+					ariaLabel: 'Show only taxa that appear on the map'
 				}
 			],
 			onToggle: toggleGeographicOnly

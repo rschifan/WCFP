@@ -106,6 +106,21 @@ describe('TaxonomyList species detail integration', () => {
 
 		globalThis.fetch = vi.fn(async (input) => {
 			const url = String(input);
+
+			// The scheda asks for the distribution as well as the record.
+			if (url.includes('/distribution')) {
+				return new Response(
+					JSON.stringify({
+						data: [
+							{ code: 'BZS', name: 'Brazil South', occurrenceStatus: 'native' },
+							{ code: 'PER', name: 'Peru', occurrenceStatus: 'native' },
+							{ code: 'AND', name: 'Andaman Is.', occurrenceStatus: 'introduced' }
+						]
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			}
+
 			const species = url.endsWith('/202') ? SAMPLE_SPECIES[1] : SAMPLE_SPECIES[0];
 
 			return new Response(JSON.stringify({ data: species }), {
@@ -122,8 +137,8 @@ describe('TaxonomyList species detail integration', () => {
 		target = null;
 	});
 
-	it('opens the shared species detail panel from species row click and removes the old detail button', async () => {
-		expect.assertions(7);
+	it('opens the scheda on Overview from a species row click', async () => {
+		expect.assertions(4);
 		const onNodeSelect = vi.fn();
 
 		render(TaxonomyList, {
@@ -136,29 +151,21 @@ describe('TaxonomyList species detail integration', () => {
 			}
 		});
 
-		const speciesRow = page.getByRole('button', { name: /^Hydrodictyon reticulatum/ });
-
-		await expect
-			.element(page.getByRole('button', { name: 'Show details for Hydrodictyon reticulatum' }))
-			.not.toBeInTheDocument();
-
-		await speciesRow.click();
+		await page.getByRole('button', { name: /^Hydrodictyon reticulatum/ }).click();
 
 		await expect.element(page.getByRole('dialog')).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('heading', { name: 'Hydrodictyon reticulatum (L.) Bory' }))
 			.toBeInTheDocument();
-
-		await page.getByRole('button', { name: 'Close panel' }).click();
-
-		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
-		await expect.element(page.getByText('Hydrodictyaceae')).toBeInTheDocument();
-		await expect.element(speciesRow).toHaveFocus();
-		expect(onNodeSelect).not.toHaveBeenCalled();
+		await expect.element(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+			'data-selected'
+		);
+		// Opening a taxon also selects it, so the surrounding panel can label its selection.
+		expect(onNodeSelect).toHaveBeenCalledTimes(1);
 	});
 
-	it('shows the taxonomy map action only when distribution exists and keeps it separate from details', async () => {
-		expect.assertions(5);
+	it('opens the same scheda on the map tab from the area-count action', async () => {
+		expect.assertions(4);
 		const onNodeSelect = vi.fn();
 
 		render(TaxonomyList, {
@@ -172,18 +179,20 @@ describe('TaxonomyList species detail integration', () => {
 		});
 
 		const mapButton = page.getByRole('button', {
-			name: 'Open map for Hydrodictyon reticulatum across 3 areas'
+			name: 'Open the distribution map for Hydrodictyon reticulatum, 3 areas'
 		});
 
 		await expect.element(mapButton).toBeInTheDocument();
-		await expect.element(page.getByText('3 areas')).toBeInTheDocument();
+		// A species with no recorded areas offers no such action.
 		await expect
-			.element(page.getByRole('button', { name: /Open map for Tetradesmus obliquus/ }))
+			.element(page.getByRole('button', { name: /distribution map for Tetradesmus obliquus/ }))
 			.not.toBeInTheDocument();
 
 		await mapButton.click();
 
-		expect(onNodeSelect).toHaveBeenCalledTimes(1);
-		await expect.element(page.getByRole('dialog')).not.toBeInTheDocument();
+		await expect.element(page.getByRole('dialog')).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('tab', { name: 'Geographical distribution' }))
+			.toHaveAttribute('data-selected');
 	});
 });

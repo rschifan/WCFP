@@ -30,6 +30,14 @@ export interface Species {
 	authors: string;
 	family: string;
 	genus?: string;
+	/**
+	 * Ranks above family. Selected only by the single-species endpoint, since list rows never
+	 * render a lineage and four extra columns per row would be paid for nothing.
+	 */
+	kingdom?: string;
+	phylum?: string;
+	class?: string;
+	order?: string;
 	lifeform?: string;
 	cwr?: boolean;
 	uses?: SpeciesUses;

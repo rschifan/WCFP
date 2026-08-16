@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { HierarchyEntryBadges } from '$lib/components/hierarchy';
+	import ReferenceList from '$lib/components/references/ReferenceList.svelte';
 	import type { HelpInlinePart, HelpParagraph, HelpSection } from '$lib/types/help';
 
 	interface Props {
@@ -140,25 +141,9 @@
 
 				{#if section.references && section.references.length > 0}
 					<div class="mt-5 border-t border-slate-200 pt-4">
-						<p class="text-xs font-semibold tracking-wide text-slate-500 uppercase">References</p>
-						<ul class="mt-2 space-y-2">
-							{#each section.references as reference, referenceIndex (`${section.id}-reference-${referenceIndex}`)}
-								<li class="text-sm leading-6 text-slate-600">
-									{#if reference.href}
-										<a
-											href={reference.href}
-											target="_blank"
-											rel="external noopener noreferrer"
-											class="app-accent-link"
-										>
-											{reference.label}
-										</a>
-									{:else}
-										{reference.label}
-									{/if}
-								</li>
-							{/each}
-						</ul>
+						<!-- Same presentation as a species record's bibliography; these sets are short
+						     and curated, so they never collapse. -->
+						<ReferenceList references={section.references} idPrefix={`${section.id}-reference`} />
 					</div>
 				{/if}
 			</article>

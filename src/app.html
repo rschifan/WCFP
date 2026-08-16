@@ -1,5 +1,10 @@
 <!doctype html>
-<html lang="en" data-theme="cerberus">
+<!--
+	data-mode is pinned because the app is a light app: its components hardcode white and slate
+	utilities that cannot flip. Without this, Skeleton-tokenised markup follows the reader's OS and
+	renders dark against light chrome. Remove the pin once the palette migration lands.
+-->
+<html lang="en" data-theme="cerberus" data-mode="light">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />

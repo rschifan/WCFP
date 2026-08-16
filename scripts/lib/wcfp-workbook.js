@@ -20,6 +20,7 @@ export const REQUIRED_COLUMNS = [
 	'Link',
 	'references_all',
 	'CWR_GRIN',
+	'cultivated_GRIN',
 	'total_uses'
 ];
 
@@ -195,7 +196,10 @@ export function buildSpeciesRecordFromRow(row) {
 		family,
 		genus,
 		...(lifeform ? { lifeform } : {}),
+		// Two independent GRIN fields: a taxon may be cultivated, an edible crop wild relative,
+		// both, or neither. The glossary explains the distinction, so the portal has to carry it.
 		...(boolCell(row['CWR_GRIN']) ? { cwr: true } : {}),
+		...(boolCell(row['cultivated_GRIN']) ? { cultivated: true } : {}),
 		...(uses ? { uses } : {}),
 		...(sourceLink ? { sourceLink } : {}),
 		...(referencesAll.length > 0 ? { referencesAll } : {}),

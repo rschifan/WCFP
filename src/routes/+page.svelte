@@ -1,8 +1,15 @@
 <script lang="ts">
-	import { CircleHelp, Globe, Info, ListTree } from 'lucide-svelte';
+	import { CircleHelp, Database, Globe, Info, ListTree } from 'lucide-svelte';
 	import { resolve } from '$app/paths';
 	import EntryPointChooser from '$lib/components/landing/EntryPointChooser.svelte';
 	import Footer from '$lib/components/layout/Footer.svelte';
+	import { WCFP_DATASET } from '$lib/constants/dataset';
+	import { formatCount } from '$lib/utils/format';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+
+	const summary = $derived(data.summary);
 
 	const heroMedia = {
 		src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Traditional_fonio_harvest_with_a_sickle%2C_Natitingou%2C_northern_Benin.jpg/3840px-Traditional_fonio_harvest_with_a_sickle%2C_Natitingou%2C_northern_Benin.jpg',
@@ -65,15 +72,29 @@
 			<div
 				class="relative mx-auto flex w-full max-w-7xl flex-1 items-start px-4 pt-16 pb-8 md:px-6 md:pt-20 md:pb-8 lg:px-8 lg:pt-24 lg:pb-10 xl:px-10 xl:pt-28 xl:pb-12"
 			>
+				<!--
+					The dataset is what the paper links here for, so it gets an affordance on the landing
+					page rather than only inside About. It leaves for figshare, hence the explicit
+					external target — this site never serves the archive itself.
+				-->
 				<div
-					class="absolute top-4 right-4 z-10 md:top-6 md:right-6 lg:top-8 lg:right-8 xl:right-10"
+					class="absolute top-4 right-4 z-10 flex items-center gap-2 md:top-6 md:right-6 lg:top-8 lg:right-8 xl:right-10"
 				>
+					<a
+						href={WCFP_DATASET.url}
+						target="_blank"
+						rel="external noopener noreferrer"
+						class="inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-950/36 px-3.5 py-2 text-xs font-semibold tracking-[0.18em] text-white/75 uppercase backdrop-blur-sm transition hover:bg-slate-950/48 hover:text-white"
+					>
+						<Database class="h-4 w-4" aria-hidden="true" />
+						Data
+					</a>
 					<a
 						href={resolve('/about')}
 						data-sveltekit-preload-data="hover"
 						class="inline-flex items-center gap-2 rounded-full border border-white/12 bg-slate-950/36 px-3.5 py-2 text-xs font-semibold tracking-[0.18em] text-white/75 uppercase backdrop-blur-sm transition hover:bg-slate-950/48 hover:text-white"
 					>
-						<CircleHelp class="h-4 w-4" />
+						<CircleHelp class="h-4 w-4" aria-hidden="true" />
 						Help
 					</a>
 				</div>
@@ -89,9 +110,10 @@
 						<p class="mt-6 text-lg leading-8 text-slate-100 md:text-xl md:leading-9">
 							The WCFP 2026 is the most comprehensive <b class="underline"
 								>global inventory of food plant taxa</b
-							>, covering <b class="underline">26,622 taxa (26,419 species)</b> across
-							<b class="underline">5,009 genera</b>
-							and <b class="underline">412 families</b>, both cultivated and wild.
+							>, covering <b class="underline">{formatCount(summary.taxa)} taxa</b>
+							across <b class="underline">{formatCount(summary.genera)} genera</b>
+							and <b class="underline">{formatCount(summary.families)} families</b>, both cultivated
+							and wild.
 						</p>
 					</div>
 

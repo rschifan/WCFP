@@ -107,11 +107,7 @@ async function main() {
 		),
 		PUBLISHED.species
 	);
-	check(
-		'genera',
-		await one(conn, `SELECT COUNT(DISTINCT genus) FROM species`),
-		PUBLISHED.genera
-	);
+	check('genera', await one(conn, `SELECT COUNT(DISTINCT genus) FROM species`), PUBLISHED.genera);
 	check(
 		'families',
 		await one(conn, `SELECT COUNT(DISTINCT family) FROM species`),
@@ -153,6 +149,15 @@ async function main() {
 	}
 	const cwrSource = rows.filter((row) => boolCell(row['CWR_GRIN'])).length;
 	check('cwr', await one(conn, `SELECT COUNT(*) FROM species WHERE cwr = TRUE`), cwrSource);
+
+	// Independent of CWR: GRIN records the two separately, so these counts overlap and neither is a
+	// subset of the other.
+	const cultivatedSource = rows.filter((row) => boolCell(row['cultivated_GRIN'])).length;
+	check(
+		'cultivated',
+		await one(conn, `SELECT COUNT(*) FROM species WHERE cultivated = TRUE`),
+		cultivatedSource
+	);
 
 	console.log('\nDistribution');
 	check(
@@ -241,14 +246,8 @@ async function main() {
 		readFileSync(path.join(ROOT, 'static/data/region-countries.json'), 'utf8')
 	);
 	check('payload source', searchPayload.source, 'data/TDWG3_count_wcfp_ISO_R1.csv');
-	check(
-		'searchable regions',
-		Object.keys(searchPayload.regionCountries).length,
-		PUBLISHED.areas
-	);
-	const dbCodes = new Set(
-		(await sql(conn, `SELECT code FROM regions`)).map((r) => r.code)
-	);
+	check('searchable regions', Object.keys(searchPayload.regionCountries).length, PUBLISHED.areas);
+	const dbCodes = new Set((await sql(conn, `SELECT code FROM regions`)).map((r) => r.code));
 	check(
 		'search regions absent from the database',
 		Object.keys(searchPayload.regionCountries).filter((c) => !dbCodes.has(c)).length,
@@ -273,7 +272,10 @@ async function main() {
 		multi.filter(
 			(r) =>
 				(searchPayload.regionCountries[r.code] ?? []).length ===
-				r.country.split('/').map((n) => n.trim()).filter(Boolean).length
+				r.country
+					.split('/')
+					.map((n) => n.trim())
+					.filter(Boolean).length
 		).length,
 		multi.length
 	);

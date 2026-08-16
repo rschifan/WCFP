@@ -1,16 +1,86 @@
-import { ABOUT_USE_CATEGORIES } from '$lib/constants/portal-help';
-import type { HelpSection } from '$lib/types/help';
+import { ABOUT_USE_CATEGORIES, ADDITIONAL_USE_CATEGORIES } from '$lib/constants/portal-help';
+import type { HelpReference, HelpSection } from '$lib/types/help';
+
+const humanFood = ABOUT_USE_CATEGORIES.find((category) => category.key === 'humanFood');
+
+if (!humanFood) {
+	throw new Error('ABOUT_USE_CATEGORIES must define the human food category.');
+}
+
+/**
+ * One bibliography for the whole guide, numbered by first citation.
+ *
+ * Each section used to carry its own short list, so the same source could appear twice under
+ * different numbers and a reader had no way to tell which sentence a reference belonged to. These
+ * are cited inline instead, by the `id` below, and rendered once at the foot of the guide.
+ *
+ * Order is order of first appearance in the text — renumbering happens by moving an entry, never by
+ * editing a number, because the numbers are positions rather than data.
+ */
+export const aboutReferences: HelpReference[] = [
+	{
+		id: 'ebdcs',
+		label:
+			'Cook FEM (1995). Economic Botany Data Collection Standard. Prepared for the International Working Group on Taxonomic Databases for Plant Sciences (TDWG). Royal Botanic Gardens, Kew.'
+	},
+	{
+		id: 'wcup',
+		label:
+			'Diazgranados M, Allkin B, Black N, et al. (2020). World Checklist of Useful Plant Species. Royal Botanic Gardens, Kew. Knowledge Network for Biocomplexity.',
+		href: 'https://doi.org/10.5063/F1CV4G34'
+	},
+	{
+		id: 'grin',
+		label:
+			'Global Crop Diversity Trust, Bioversity International & USDA Agricultural Research Service (2025). GRIN-Global Server.',
+		href: 'https://npgsweb.ars-grin.gov'
+	},
+	{
+		id: 'grin-cwr-inventory',
+		label:
+			'Wiersema JH & Leon B (2016). The GRIN Taxonomy crop wild relative inventory. In: Maxted N, Dulloo ME & Ford-Lloyd BV (eds.), Enhancing Crop Genepool Use. CAB International.',
+		href: 'https://npgsweb.ars-grin.gov'
+	},
+	{
+		id: 'wcvp',
+		label: 'World Checklist of Vascular Plants (WCVP). Royal Botanic Gardens, Kew.',
+		href: 'https://powo.science.kew.org/'
+	},
+	{
+		id: 'wgsrpd',
+		label:
+			'Brummitt RK (2001). World Geographical Scheme for Recording Plant Distributions, 2nd edition. International Working Group on Taxonomic Databases for Plant Sciences (TDWG).'
+	}
+];
 
 export const aboutHelpSections: HelpSection[] = [
 	{
 		id: 'use-categories',
 		title: 'Use categories',
 		paragraphs: [
-			'Plant uses are classified according to the ten categories defined in the World Checklist of Useful Plant Species (Diazgranados et al., 2020), based on the Economic Botany Data Collection Standard (EBDCS; Cook, 1995). Each category is defined as follows:'
+			[
+				// The scheme is *adapted from* WCUP rather than defined by it, and the descriptions in
+				// the table are this portal's summaries rather than either source's text. Saying
+				// otherwise would attribute wording to Cook and to Diazgranados et al. that neither
+				// wrote.
+				{
+					text: 'Plant uses are classified following the Economic Botany Data Collection Standard'
+				},
+				{ text: ' (Cook, 1995)', cite: ['ebdcs'] },
+				{
+					text: ', using a simplified categorisation adapted from the World Checklist of Useful Plant Species'
+				},
+				{ text: ' (Diazgranados et al., 2020)', cite: ['wcup'] },
+				{ text: '.' }
+			],
+			// Human food is described here rather than listed in the table: it is the criterion for
+			// inclusion, so it carries no badge anywhere in the portal, and a table row with an empty
+			// icon cell would imply a marker the reader will never meet.
+			`Every taxon in the checklist has a documented human food use — that is the criterion for inclusion. ${humanFood.definition} The nine categories below record uses documented in addition to it, and each has a badge used throughout the portal:`
 		],
 		table: {
 			columns: ['Category', 'Definition'],
-			rows: ABOUT_USE_CATEGORIES.map((category) => ({
+			rows: ADDITIONAL_USE_CATEGORIES.map((category) => ({
 				iconBadge: {
 					id: `about-use:${category.id}`,
 					icon: category.icon,
@@ -20,14 +90,7 @@ export const aboutHelpSections: HelpSection[] = [
 				},
 				cells: [category.label, category.definition]
 			}))
-		},
-		references: [
-			{
-				label:
-					'Reference: Diazgranados M, Allkin B, Black N, et al. (2020). World Checklist of Useful Plant Species. Royal Botanic Gardens, Kew. Knowledge Network for Biocomplexity. doi:10.5063/F1CV4G34',
-				href: 'https://doi.org/10.5063/F1CV4G34'
-			}
-		]
+		}
 	},
 	{
 		id: 'life-form',
@@ -44,17 +107,14 @@ export const aboutHelpSections: HelpSection[] = [
 				{
 					text: 'Crop Wild Relatives are wild plant taxa closely related to cultivated crops that represent a critical reservoir of genetic diversity for crop improvement and food security. In this portal, CWR status follows the '
 				},
-				{
-					text: 'GRIN-Global CWR database',
-					href: 'https://npgsweb.ars-grin.gov'
-				},
-				{
-					text: ' (Global Crop Diversity Trust, Bioversity International & USDA Agricultural Research Service, 2025) integrated with the '
-				},
+				{ text: 'GRIN-Global CWR database', href: 'https://npgsweb.ars-grin.gov' },
+				{ text: '', cite: ['grin', 'grin-cwr-inventory'] },
+				{ text: ' integrated with the ' },
 				{
 					text: 'World Checklist of Vascular Plants (WCVP)',
 					href: 'https://powo.science.kew.org/'
 				},
+				{ text: '', cite: ['wcvp'] },
 				{
 					text: '. Taxa were classified as cultivated or as CWR by retaining only records with an assigned gene pool or graftstock designation in GRIN-Global. Food plant taxa with CWR status and documented food uses are referred to as edible CWR.'
 				}
@@ -89,19 +149,7 @@ export const aboutHelpSections: HelpSection[] = [
 					]
 				}
 			]
-		},
-		references: [
-			{
-				label:
-					'Reference: Global Crop Diversity Trust, Bioversity International & USDA Agricultural Research Service. GRIN-Global Server. (2025). https://npgsweb.ars-grin.gov',
-				href: 'https://npgsweb.ars-grin.gov'
-			},
-			{
-				label:
-					'Reference: Wiersema JH & Leon B (2016). The GRIN Taxonomy crop wild relative inventory. In: Maxted N, Dulloo ME & Ford-Lloyd BV (eds.), Enhancing Crop Genepool Use. CAB International. USDA-ARS GRIN Taxonomy: https://npgsweb.ars-grin.gov',
-				href: 'https://npgsweb.ars-grin.gov'
-			}
-		]
+		}
 	},
 	{
 		id: 'distribution',
@@ -113,16 +161,15 @@ export const aboutHelpSections: HelpSection[] = [
 					text: 'World Checklist of Vascular Plants (WCVP)',
 					href: 'https://powo.science.kew.org/'
 				},
+				{ text: '', cite: ['wcvp'] },
 				{
-					text: '; areas of cultivation are not included. Geographic units follow the World Geographical Scheme for Recording Plant Distributions (WGSRPD) at Level 3 (TDWG3), a standardised system widely used in botanical literature to define botanical countries and regions. Where a TDWG3 area corresponds to a single sovereign nation, the respective ISO 3166-1 alpha-2 and alpha-3 codes are provided to facilitate interoperability. For TDWG3 areas that encompass more than one country (e.g. former political units or multi-island regions), ISO codes are not assigned and all constituent countries are listed, separated by "/".'
+					text: '; areas of cultivation are not included. Geographic units follow the World Geographical Scheme for Recording Plant Distributions (WGSRPD) at Level 3 (TDWG3)'
+				},
+				{ text: '', cite: ['wgsrpd'] },
+				{
+					text: ', a standardised system widely used in botanical literature to define botanical countries and regions. Where a TDWG3 area corresponds to a single sovereign nation, the respective ISO 3166-1 alpha-2 and alpha-3 codes are provided to facilitate interoperability. For TDWG3 areas that encompass more than one country (e.g. former political units or multi-island regions), ISO codes are not assigned and all constituent countries are listed, separated by "/".'
 				}
 			]
-		],
-		references: [
-			{
-				label: 'World Checklist of Vascular Plants (WCVP)',
-				href: 'https://powo.science.kew.org/'
-			}
 		]
 	}
 ];

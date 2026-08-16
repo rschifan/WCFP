@@ -36,9 +36,20 @@
 		'transition transition-discrete opacity-0 starting:data-[state=open]:opacity-0 data-[state=open]:opacity-100';
 	const animModal =
 		'transition transition-discrete opacity-0 -translate-x-full starting:data-[state=open]:opacity-0 starting:data-[state=open]:-translate-x-full data-[state=open]:opacity-100 data-[state=open]:translate-x-0';
+
+	/**
+	 * The bar is black with white text, and stays that way whatever the reader's mode. Skeleton's
+	 * default `surface-100-900` follows `color-scheme`, which the portal pins to light, so left
+	 * alone the bar renders as pale grey chrome. Cerberus' surface ramp is a neutral greyscale,
+	 * so these tokens are literally black and white rather than a tinted approximation.
+	 */
+	const navLink =
+		'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors';
+	const barNavLink = { active: 'bg-surface-700', idle: 'hover:bg-surface-800' };
+	const drawerNavLink = { active: 'bg-surface-200 font-semibold', idle: 'hover:bg-surface-100' };
 </script>
 
-<AppBar>
+<AppBar class="bg-surface-900 text-surface-50">
 	<AppBar.Toolbar class="grid-cols-[auto_1fr_auto]">
 		<AppBar.Lead>
 			<Dialog>
@@ -64,8 +75,7 @@
 									<a
 										href={resolvedHref}
 										data-sveltekit-preload-data="hover"
-										class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-											{active ? 'app-accent-nav-active' : 'text-on-surface-token hover:bg-surface-hover-token'}"
+										class="{navLink} {active ? drawerNavLink.active : drawerNavLink.idle}"
 										aria-current={active ? 'page' : undefined}
 									>
 										<Icon class="h-4 w-4" aria-hidden="true" />
@@ -96,8 +106,7 @@
 				<a
 					href={resolvedHref}
 					data-sveltekit-preload-data="hover"
-					class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-							{active ? 'app-accent-nav-active' : 'text-on-surface-token hover:bg-surface-hover-token'}"
+					class="{navLink} {active ? barNavLink.active : barNavLink.idle}"
 					aria-current={active ? 'page' : undefined}
 				>
 					<Icon class="h-4 w-4" aria-hidden="true" />

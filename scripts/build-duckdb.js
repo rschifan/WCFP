@@ -187,6 +187,7 @@ async function main() {
 			"order"               VARCHAR  NOT NULL DEFAULT 'Unknown',
 			lifeform              VARCHAR,
 			cwr                   BOOLEAN  NOT NULL DEFAULT FALSE,
+			cultivated            BOOLEAN  NOT NULL DEFAULT FALSE,
 			use_human_food        BOOLEAN  NOT NULL DEFAULT FALSE,
 			use_animal_food       BOOLEAN  NOT NULL DEFAULT FALSE,
 			use_environmental     BOOLEAN  NOT NULL DEFAULT FALSE,
@@ -238,6 +239,7 @@ async function main() {
 			"order",
 			lifeform,
 			cwr,
+			cultivated,
 			use_human_food,
 			use_animal_food,
 			use_environmental,
@@ -251,7 +253,7 @@ async function main() {
 			source_link,
 			references_all,
 			uses_total
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
 	);
 
 	let speciesInserted = 0;
@@ -276,6 +278,7 @@ async function main() {
 			String(row['order'] || '').trim() || 'Unknown',
 			speciesRecord.lifeform ?? null,
 			Boolean(speciesRecord.cwr),
+			Boolean(speciesRecord.cultivated),
 			Boolean(speciesRecord.uses?.humanFood),
 			Boolean(speciesRecord.uses?.animalFood),
 			Boolean(speciesRecord.uses?.environmentalUses),

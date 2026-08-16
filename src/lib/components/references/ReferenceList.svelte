@@ -7,6 +7,11 @@
 	export interface ReferenceEntry {
 		label: string;
 		href?: string;
+		/**
+		 * DOM id for this entry, set when something links to it — the About guide cites inline and
+		 * its superscripts have to land on the right line.
+		 */
+		id?: string;
 	}
 </script>
 
@@ -71,7 +76,7 @@
 {#snippet list()}
 	<ol class="mt-2 divide-y divide-surface-200-800 text-sm">
 		{#each references as entry, index (`${idPrefix}-${index}`)}
-			<li class="flex gap-3 py-2 leading-relaxed">
+			<li id={entry.id} class="flex scroll-mt-24 gap-3 py-2 leading-relaxed">
 				<span class="w-6 shrink-0 text-right text-xs text-surface-600-400 tabular-nums">
 					{index + 1}
 				</span>

@@ -1,21 +1,41 @@
 name: Deploy
 
-# DISARMED 2026-08-13, deliberately. Do not restore the `push` trigger until this
-# workflow has been rewritten for adapter-node (see Phase 9 of the cutover plan).
+# Rewritten 2026-08-16 for adapter-node, replacing a workflow that had been disarmed because it
+# would have destroyed the live site. What it used to do, and what changed:
 #
-# As written below it: (a) runs no `pnpm check`, so it deploys even when the type
-# gate is red; (b) rsyncs `--delete` a build/ that adapter-node fills with .js, not
-# .html, over the live docroot at $SSH_REMOTE_PATH (= /var/www/wcfp/html); and
-# (c) "verifies" with `find … -name index.html | head -5`, whose exit status is
-# head's — so it reports success over a destroyed site.
+#   * It ran only `pnpm build`, so a red type gate still deployed.
+#     -> `pnpm check` and `pnpm test` now gate the build, and the job stops if either fails.
+#
+#   * It rsynced `build/` over $SSH_REMOTE_PATH (the static docroot, /var/www/wcfp/html) with
+#     `--delete`. Under adapter-node `build/` holds a Node server — index.js, handler.js — not a
+#     site, so that replaced the served files with something no static server can serve.
+#     -> It now ships to SSH_APP_PATH, an application directory, and never touches the docroot.
+#
+#   * `--delete` would also have removed anything already living there, including the 180 MB
+#     DuckDB the app reads.
+#     -> `data/` and `node_modules/` are excluded, so a deploy cannot delete the database.
+#
+#   * "Verify deployment" piped `find` into `head`, so the step's exit status was head's — it
+#     reported success over a destroyed site.
+#     -> Verification is a real HTTP check that fails the job on a bad status.
+#
+#   * adapter-node needs its process restarted to pick up a new build; nothing restarted it.
+#     -> The service is restarted, then health-checked.
+#
+# STILL MANUAL, DELIBERATELY. The `push` trigger stays off until this has been proven against a
+# staging target. Arming it is a separate decision, not a side effect of this rewrite.
+
 on:
   workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm you intend to update the live site'
+        required: true
+        default: ''
 
-# Set minimal permissions for security
 permissions:
   contents: read
 
-# Prevent multiple simultaneous deployments
 concurrency:
   group: deployment
   cancel-in-progress: false
@@ -24,16 +44,45 @@ jobs:
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     steps:
+      - name: Confirm intent
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm }}" != "deploy" ]; then
+            echo "::error::Refusing to deploy: type 'deploy' in the confirm input to proceed."
+            exit 1
+          fi
+
+      - name: Check required secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_APP_PATH: ${{ secrets.SSH_APP_PATH }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in SSH_HOST SSH_USERNAME SSH_APP_PATH SSH_PRIVATE_KEY HEALTHCHECK_URL; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: $name"
+              missing=1
+            fi
+          done
+          # SSH_APP_PATH must not be the static docroot the old workflow overwrote.
+          case "${SSH_APP_PATH:-}" in
+            */html|*/html/) echo "::error::SSH_APP_PATH looks like the web docroot. Deploy the Node app elsewhere."; missing=1 ;;
+          esac
+          [ "$missing" -eq 0 ]
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 22
 
       - name: Enable Corepack
         run: corepack enable
@@ -43,97 +92,88 @@ jobs:
         with:
           run_install: false
 
-      - name: Verify pnpm installation
-        run: |
-          pnpm --version
-          which pnpm
-
       - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
           path: ${{ env.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+          restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build project
+      # The gates the old workflow skipped. A deploy that ships a red build is worse than no
+      # deploy, because it looks like it worked.
+      - name: Type check
+        run: pnpm check
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
         run: pnpm build
-        continue-on-error: false
+
+      - name: Verify build is an adapter-node server
+        run: |
+          set -euo pipefail
+          test -f build/index.js || { echo "::error::build/index.js missing — is the adapter still adapter-node?"; exit 1; }
+          echo "Build looks correct:"
+          ls -la build/
 
       - name: Setup SSH key
         run: |
+          set -euo pipefail
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-          # Write private key to file
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          # Verify key format
-          if ! head -1 ~/.ssh/deploy_key | grep -q "BEGIN.*PRIVATE KEY"; then
-            echo "Error: SSH key does not start with BEGIN marker"
-            echo "First line: $(head -1 ~/.ssh/deploy_key)"
-            exit 1
-          fi
-          echo "SSH key file created successfully"
-
-      - name: Verify build output
-        run: |
-          echo "Build directory contents:"
-          ls -la build/ || echo "Build directory not found!"
-          echo ""
-          echo "Looking for index.html:"
-          find build -name "index.html" -o -name "*.html" | head -10
-
-      - name: Add server to known hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+          head -1 ~/.ssh/deploy_key | grep -q "BEGIN.*PRIVATE KEY" \
+            || { echo "::error::SSH key is not a private key in PEM form"; exit 1; }
+          ssh-keyscan -H -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Test SSH connection
+      - name: Ship the server bundle
         run: |
-          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
-            "echo 'SSH connection successful' && pwd && ls -la ${{ secrets.SSH_REMOTE_PATH }} || echo 'Remote path does not exist'"
+          set -euo pipefail
+          # --delete keeps the app directory honest, but data/ holds the DuckDB the app reads and
+          # node_modules/ is installed server-side; neither is ours to remove.
+          rsync -az --delete --human-readable \
+            --exclude 'data/' \
+            --exclude 'node_modules/' \
+            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }}" \
+            build/ package.json pnpm-lock.yaml \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_APP_PATH }}/"
 
-      - name: Deploy via rsync (using SSH key file)
+      - name: Install production dependencies and restart
         run: |
-          echo "Deploying from build/ to ${{ secrets.SSH_REMOTE_PATH }}"
-          rsync -avz --delete --verbose \
-            -e "ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no" \
-            build/ \
-            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}:${{ secrets.SSH_REMOTE_PATH }}/
-          echo "Deployment completed"
-
-      - name: Verify deployment on server
-        run: |
-          echo "Verifying deployed files on server:"
-          ssh -i ~/.ssh/deploy_key -p ${{ secrets.SSH_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }} \
-            "ls -la ${{ secrets.SSH_REMOTE_PATH }}/ && echo '' && echo 'Looking for index.html:' && find ${{ secrets.SSH_REMOTE_PATH }} -name 'index.html' -type f | head -5"
-
-      - name: Cleanup SSH key
-        if: always()
-        run: |
-          rm -f ~/.ssh/deploy_key
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.SSH_PORT || 22 }}" \
+            "${{ secrets.SSH_USERNAME }}@${{ secrets.SSH_HOST }}" \
+            "set -euo pipefail
+             cd '${{ secrets.SSH_APP_PATH }}'
+             corepack enable
+             pnpm install --prod --frozen-lockfile
+             sudo systemctl restart '${{ secrets.SERVICE_NAME || 'wcfp' }}'
+             sudo systemctl is-active --quiet '${{ secrets.SERVICE_NAME || 'wcfp' }}'"
 
       - name: Health check
         run: |
-          echo "Deployment completed. Please verify the site is accessible."
-          echo "If health check fails, manual rollback may be required."
+          set -euo pipefail
+          url="${{ secrets.HEALTHCHECK_URL }}"
+          # Give the service a moment to bind, then require a 200. Unlike the old `find | head`,
+          # a failure here fails the job.
+          for attempt in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || echo 000)
+            echo "Attempt $attempt: HTTP $status"
+            [ "$status" = "200" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Health check never returned 200 for $url — the site may be down."
+          exit 1
 
-      - name: Deployment status
+      - name: Cleanup SSH key
         if: always()
-        run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ Deployment successful"
-          else
-            echo "❌ Deployment failed - manual intervention may be required"
-            echo "Please check the logs above for details."
-          fi
+        run: rm -f ~/.ssh/deploy_key

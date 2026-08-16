@@ -2,10 +2,10 @@
 
 /*
  * Tailwind's `dark` variant defaults to the reader's OS preference, and Skeleton's tokens are
- * built on it. The rest of the portal hardcodes white and slate utilities that cannot follow,
- * so an OS set to dark produced dark Skeleton chrome around light pages. Key the variant to an
- * explicit `data-mode="dark"` instead — `src/app.html` pins light until the palette migration
- * makes a real dark theme possible.
+ * built on it. This portal is light by design (see `src/app.html`), so that default would render
+ * tokenised chrome dark around pages that stay light. Key the variant to an explicit
+ * `data-mode="dark"` instead, which nothing sets — the rule below therefore never matches, and
+ * Skeleton's light tokens are the only ones in play.
  */
 @custom-variant dark (&:where([data-mode='dark'], [data-mode='dark'] *));
 

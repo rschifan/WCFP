@@ -23,11 +23,21 @@ name: Deploy
 # code needs a column the live database lacks — the failure mode that would otherwise surface as a
 # 500 on a page nobody checked.
 
+# Gated on CI rather than on the push. CI already runs the type check and the suite on a clean
+# runner; repeating them here would spend the production host's CPU re-proving what is known, and
+# would let a deploy start against a commit CI is still evaluating. workflow_run fires only once CI
+# has concluded on main.
+#
+# workflow_run always takes this file from the default branch, so a change to the gate only takes
+# effect after it is merged.
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
+# Never two deploys at once, and never cancel one half-applied — queue instead.
 concurrency:
   group: deploy-production
   cancel-in-progress: false
@@ -43,14 +53,20 @@ env:
 
 jobs:
   deploy:
+    # A manual dispatch is an explicit override; otherwise only a green CI run deploys.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: [self-hosted, wcfp]
     timeout-minutes: 20
 
     steps:
+      # ref matters: under workflow_run the default checkout is the tip of the default branch, not
+      # the commit CI actually tested. Without it a deploy can ship a commit no CI run has seen.
+      #
       # persist-credentials: false because this runner's workspace is not ephemeral. The default
       # writes the job token into .git/config, where it would sit on disk between runs.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Enable Corepack
@@ -70,13 +86,8 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # A red type gate must not reach production. The database-backed specs are skipped here:
-      # they read data/wcfp.duckdb, which lives on the host rather than in the checkout.
-      - name: Gate
-        run: |
-          pnpm check
-          pnpm vitest run --project server --exclude '**/*.data.spec.ts'
-
+      # No type check and no suite here — CI ran both on this exact commit before this workflow was
+      # allowed to start. The build stays, because it produces the artifact being shipped.
       - name: Build
         run: pnpm build
 

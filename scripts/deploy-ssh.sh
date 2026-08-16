@@ -75,18 +75,15 @@ REMOTE_SUM=$(remote "sha256sum $DB_REMOTE | awk '{print \$1}'")
 echo "   checksum matches"
 
 # A checksum proves the bytes arrived, not that they are the right bytes. This release queries
-# columns that an older database will not have; catching that here means the swap never happens,
-# rather than the site serving 500s until someone opens the page.
+# columns an older database will not have; catching that here means the swap never happens, rather
+# than the site serving 500s until someone opens the page.
+#
+# Run from inside the uploaded release, which already has the duckdb npm package from the install
+# above — the host has no duckdb CLI.
 say "Checking the uploaded database against what this release queries"
-for col in cultivated cwr use_human_food source_link; do
-	remote "duckdb -readonly $DB_REMOTE 'SELECT $col FROM species LIMIT 1'" >/dev/null 2>&1 \
-		|| { echo "   species.$col missing — aborting, nothing swapped."; exit 1; }
-done
-for col in flora_richness pct_of_flora; do
-	remote "duckdb -readonly $DB_REMOTE 'SELECT $col FROM regions LIMIT 1'" >/dev/null 2>&1 \
-		|| { echo "   regions.$col missing — aborting, nothing swapped."; exit 1; }
-done
-echo "   schema satisfies this release"
+rsync -az "${RSYNC_AS_OWNER[@]}" -e 'ssh -o BatchMode=yes' scripts/check-db-schema.js "$HOST:$RELEASE/check-db-schema.js"
+as_owner "cd $RELEASE && node check-db-schema.js $DB_REMOTE" \
+	|| { echo "   Aborting — nothing swapped, the site is untouched."; exit 1; }
 
 say "Activating"
 # Both swaps are renames, so the service never observes a half-written target.

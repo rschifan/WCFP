@@ -89,21 +89,15 @@ jobs:
 
       # The one check that catches a code/database mismatch before it reaches a reader. Add a
       # column here when a query starts depending on it.
+      # Through the duckdb npm package, which pnpm install has already put in place. The CLI is not
+      # on this host, and provisioning one more thing to keep current is a worse trade than reusing
+      # a dependency the app already ships.
       - name: Verify the live database has the columns this release queries
         run: |
           set -euo pipefail
           DB=$(readlink -e "$APP/shared/wcfp.duckdb") || { echo "::error::$APP/shared/wcfp.duckdb does not resolve to a file."; exit 1; }
-          echo "Checking $DB"
-          for col in cultivated cwr use_human_food source_link; do
-            duckdb -readonly "$DB" \
-              "SELECT ${col} FROM species LIMIT 1" >/dev/null 2>&1 \
-              || { echo "::error::species.${col} is missing from the deployed database. Upload a rebuilt database (scripts/deploy-ssh.sh) before this release can go live."; exit 1; }
-          done
-          for col in flora_richness pct_of_flora; do
-            duckdb -readonly "$DB" "SELECT ${col} FROM regions LIMIT 1" >/dev/null 2>&1 \
-              || { echo "::error::regions.${col} is missing from the deployed database."; exit 1; }
-          done
-          echo "Schema satisfies this release."
+          node scripts/check-db-schema.js "$DB" \
+            || { echo "::error::The deployed database does not satisfy this release. Ship a rebuilt one with scripts/deploy-ssh.sh first."; exit 1; }
 
       # Staged beside the target and renamed into place, never written over it. A workflow_dispatch
       # re-run produces the same SHA and so the same release path — clearing that path first would

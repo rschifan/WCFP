@@ -36,11 +36,11 @@
 		<img
 			src={photoSrc}
 			alt={contributor.name}
-			class="h-20 w-20 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+			class="h-20 w-20 shrink-0 rounded-full object-cover ring-1 ring-surface-200-800"
 		/>
 	{:else}
 		<div
-			class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xl font-semibold text-white ring-1 ring-slate-200"
+			class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface-900 text-xl font-semibold text-white ring-1 ring-surface-200-800"
 			aria-label="Avatar for {contributor.name}"
 		>
 			{initials}
@@ -61,14 +61,14 @@
 				</h3>
 			</a>
 		{:else}
-			<h3 class="text-base font-semibold text-slate-900">{contributor.name}</h3>
+			<h3 class="text-base font-semibold text-surface-950-50">{contributor.name}</h3>
 		{/if}
 	</div>
 
 	<!-- Affiliations -->
 	<div class="w-full space-y-1">
 		{#each contributor.affiliations as affiliation, index (`${contributor.name}-${index}`)}
-			<p class="text-xs leading-relaxed text-slate-600">{affiliation}</p>
+			<p class="text-xs leading-relaxed text-surface-600-400">{affiliation}</p>
 		{/each}
 	</div>
 </div>

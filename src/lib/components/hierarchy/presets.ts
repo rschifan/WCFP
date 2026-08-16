@@ -77,9 +77,7 @@ export const regionSpeciesPreset: HierarchyEntryPreset = {
 	showCount: true
 };
 
-export const SHARED_TRAIT_BADGE_LEVELS: readonly TaxonomicEntryLevel[] = [
-	'species'
-];
+export const SHARED_TRAIT_BADGE_LEVELS: readonly TaxonomicEntryLevel[] = ['species'];
 
 export type TaxonomicEntryLevel =
 	| 'default'
@@ -175,7 +173,11 @@ function buildTraitBadges(
 		});
 	}
 
+	// Human food is skipped: every taxon in the checklist has it, so the badge would sit on every
+	// row and tell the reader nothing. SPECIES_USE_ORDER still drives the loop because it is the
+	// stored bit-mask order.
 	for (const useKey of SPECIES_USE_ORDER) {
+		if (useKey === 'humanFood') continue;
 		if (!traitSource.uses.includes(useKey)) continue;
 		const config = USE_BADGE_DEFINITIONS[useKey];
 		badges.push({

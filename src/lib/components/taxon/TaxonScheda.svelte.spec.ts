@@ -115,7 +115,7 @@ describe('TaxonScheda', () => {
 	});
 
 	it('lists only the uses on record', async () => {
-		expect.assertions(3);
+		expect.assertions(4);
 
 		render(TaxonScheda, {
 			taxon: speciesNode(),
@@ -127,9 +127,12 @@ describe('TaxonScheda', () => {
 			onViewChange: () => {}
 		});
 
-		// Two of ten flags are set on the fixture; the other eight get no chip at all.
-		await expect.element(page.getByText('Uses — 2 of 10 categories')).toBeInTheDocument();
-		await expect.element(page.getByText('Human Food')).toBeInTheDocument();
+		// The fixture sets human food and medicines. Human food is the checklist's inclusion
+		// criterion — every taxon has it — so it is never chipped and never counted here; only
+		// medicines is, out of the nine categories that distinguish one taxon from another.
+		await expect.element(page.getByText('Uses — 1 of 9 categories')).toBeInTheDocument();
+		await expect.element(page.getByText('Medicine', { exact: true })).toBeInTheDocument();
+		await expect.element(page.getByText('Human Food', { exact: true })).not.toBeInTheDocument();
 		await expect.element(page.getByText('Fuel', { exact: true })).not.toBeInTheDocument();
 	});
 

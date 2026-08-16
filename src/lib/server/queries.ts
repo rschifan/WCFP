@@ -252,6 +252,158 @@ export async function getGeoFeatures(conn: Connection): Promise<GeoFeatureRow[]>
 	);
 }
 
+export interface ChecklistSummary {
+	/** Every accepted record: species, hybrids and graft-chimaerae together. */
+	taxa: number;
+	/** Species-rank records only. */
+	species: number;
+	hybrids: number;
+	graftChimaerae: number;
+	genera: number;
+	families: number;
+	orders: number;
+	classes: number;
+	phyla: number;
+	/** Edible crop wild relatives. */
+	cwr: number;
+	/** TDWG Level 3 areas the checklist covers. */
+	areas: number;
+	/** Taxa carrying at least one distribution record. */
+	taxaWithDistribution: number;
+	/** One row per (taxon, area) pair. */
+	distributionRecords: number;
+	/** Distribution records per occurrence status — records, not taxa. */
+	occurrenceRecords: Record<OccurrenceStatus, number>;
+	/** Taxa recorded in each use category. `humanFood` is every taxon; see below. */
+	uses: Record<SpeciesUseKey, number>;
+}
+
+/**
+ * The headline figures, straight from the data.
+ *
+ * These were literals in the markup until a post-submission audit found ten taxa entered twice and
+ * the published total moved from 26,632 to 26,622 — which the pages went on displaying. Deriving
+ * them means the site cannot disagree with the database it is serving.
+ *
+ * Two conventions come from the paper rather than from a column:
+ *
+ * - **Taxa versus species.** There is no rank column; the workbook does not carry one. A record is
+ *   a hybrid or a graft-chimaera when its accepted name opens with the `×` or `+` marker, which is
+ *   how the paper defines the split ("the hybrid (×) and graft-chimaera (+) markers that appear as
+ *   the first word of some accepted names"). It yields the paper's own 201 and 2.
+ * - **Human food is the inclusion criterion, not a facet.** Only taxa with a documented human food
+ *   use entered the checklist, so `uses.humanFood` equals `taxa` by construction. The other nine
+ *   categories are additional uses, and presenting them as a distribution alongside human food
+ *   would invite a comparison the data does not support.
+ *
+ * Rank counts are `COUNT(DISTINCT …)` over `species`, not a tally of `taxonomy_nodes`. Those nodes
+ * are path-scoped, so a name reachable by more than one lineage becomes more than one node: the tree
+ * holds 419 family and 5,015 genus nodes against the published 412 and 5,009.
+ */
+export async function getChecklistSummary(conn: Connection): Promise<ChecklistSummary> {
+	const [totals] = await query<{
+		taxa: number;
+		hybrids: number;
+		graft_chimaerae: number;
+		genera: number;
+		families: number;
+		orders: number;
+		classes: number;
+		phyla: number;
+		cwr: number;
+		use_human_food: number;
+		use_animal_food: number;
+		use_environmental: number;
+		use_fuels: number;
+		use_gene_sources: number;
+		use_invertebrate_food: number;
+		use_materials: number;
+		use_medicines: number;
+		use_poisons: number;
+		use_social_uses: number;
+	}>(
+		conn,
+		`SELECT
+			COUNT(*)                                             AS taxa,
+			COUNT(*) FILTER (WHERE taxon_name LIKE '%×%')        AS hybrids,
+			COUNT(*) FILTER (WHERE taxon_name LIKE '%+%')        AS graft_chimaerae,
+			COUNT(DISTINCT genus)                                AS genera,
+			COUNT(DISTINCT family)                               AS families,
+			COUNT(DISTINCT "order")                              AS orders,
+			COUNT(DISTINCT class)                                AS classes,
+			COUNT(DISTINCT phylum)                               AS phyla,
+			COUNT(*) FILTER (WHERE cwr)                          AS cwr,
+			COUNT(*) FILTER (WHERE use_human_food)               AS use_human_food,
+			COUNT(*) FILTER (WHERE use_animal_food)              AS use_animal_food,
+			COUNT(*) FILTER (WHERE use_environmental)            AS use_environmental,
+			COUNT(*) FILTER (WHERE use_fuels)                    AS use_fuels,
+			COUNT(*) FILTER (WHERE use_gene_sources)             AS use_gene_sources,
+			COUNT(*) FILTER (WHERE use_invertebrate_food)        AS use_invertebrate_food,
+			COUNT(*) FILTER (WHERE use_materials)                AS use_materials,
+			COUNT(*) FILTER (WHERE use_medicines)                AS use_medicines,
+			COUNT(*) FILTER (WHERE use_poisons)                  AS use_poisons,
+			COUNT(*) FILTER (WHERE use_social_uses)              AS use_social_uses
+		 FROM species`
+	);
+
+	const [coverage] = await query<{
+		areas: number;
+		taxa_with_distribution: number;
+		distribution_records: number;
+	}>(
+		conn,
+		`SELECT
+			(SELECT COUNT(*) FROM regions)                     AS areas,
+			(SELECT COUNT(DISTINCT wcfp_id) FROM distribution) AS taxa_with_distribution,
+			(SELECT COUNT(*) FROM distribution)                AS distribution_records`
+	);
+
+	// Records rather than taxa: `getStatusFacets` counts distinct taxa per status, which is the
+	// right figure for a filter rail and the wrong one here — a taxon native in one area and
+	// introduced in another belongs to both buckets, so those counts do not sum to the total.
+	const statusRows = await query<{ occurrence_status: OccurrenceStatus; count: number }>(
+		conn,
+		`SELECT occurrence_status, COUNT(*) AS count FROM distribution GROUP BY occurrence_status`
+	);
+	const occurrenceRecords = { native: 0, introduced: 0, extinct: 0, doubtful: 0 };
+	for (const row of statusRows) {
+		if (row.occurrence_status in occurrenceRecords) {
+			occurrenceRecords[row.occurrence_status] = row.count;
+		}
+	}
+
+	const markers = totals.hybrids + totals.graft_chimaerae;
+
+	return {
+		taxa: totals.taxa,
+		species: totals.taxa - markers,
+		hybrids: totals.hybrids,
+		graftChimaerae: totals.graft_chimaerae,
+		genera: totals.genera,
+		families: totals.families,
+		orders: totals.orders,
+		classes: totals.classes,
+		phyla: totals.phyla,
+		cwr: totals.cwr,
+		areas: coverage.areas,
+		taxaWithDistribution: coverage.taxa_with_distribution,
+		distributionRecords: coverage.distribution_records,
+		occurrenceRecords,
+		uses: {
+			humanFood: totals.use_human_food,
+			animalFood: totals.use_animal_food,
+			environmentalUses: totals.use_environmental,
+			fuels: totals.use_fuels,
+			geneSources: totals.use_gene_sources,
+			invertebrateFood: totals.use_invertebrate_food,
+			materials: totals.use_materials,
+			medicines: totals.use_medicines,
+			poisons: totals.use_poisons,
+			socialUses: totals.use_social_uses
+		}
+	};
+}
+
 /**
  * All region stats, keyed by TDWG3 code.
  */

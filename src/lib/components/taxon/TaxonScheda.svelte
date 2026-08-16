@@ -11,10 +11,11 @@
 	 */
 	import { Tabs } from '@skeletonlabs/skeleton-svelte';
 	import { base } from '$app/paths';
-	import { ChevronRight, ExternalLink, Link2, Check } from 'lucide-svelte';
+	import { ChevronRight, ExternalLink } from 'lucide-svelte';
 	import TaxonomyDistributionMap from '$lib/components/map/TaxonomyDistributionMap.svelte';
 	import ReferenceList from '$lib/components/references/ReferenceList.svelte';
-	import { ABOUT_USE_CATEGORIES } from '$lib/constants/portal-help';
+	import CopyButton from '$lib/components/ui/CopyButton.svelte';
+	import { ADDITIONAL_USE_CATEGORIES } from '$lib/constants/portal-help';
 	import { OCCURRENCE_LABELS, OCCURRENCE_ORDER } from '$lib/map/color-scale';
 	import { APP_MAP_PALETTE } from '$lib/constants/palette';
 	import { getSourceCitation, getSourceLinkLabel } from '$lib/utils/species/source-link';
@@ -83,14 +84,15 @@
 			: (taxon.distributionAreaCount ?? 0)
 	);
 
-	const totalUseCategories = ABOUT_USE_CATEGORIES.filter((category) =>
-		Boolean(category.key)
-	).length;
-	/** Only what is recorded. An absent category is not a finding worth its own chip. */
+	const totalUseCategories = ADDITIONAL_USE_CATEGORIES.length;
+	/**
+	 * Only what is recorded, and never human food: every taxon in the checklist has that use, so a
+	 * chip for it appears on every card and distinguishes none of them.
+	 */
 	const recordedUses = $derived(
-		ABOUT_USE_CATEGORIES.filter(
-			(category) => category.key && Boolean(species?.uses?.[category.key])
-		).map((category) => ({ label: category.label, icon: category.icon }))
+		ADDITIONAL_USE_CATEGORIES.filter((category) => Boolean(species?.uses?.[category.key])).map(
+			(category) => ({ label: category.label, icon: category.icon })
+		)
 	);
 
 	/** Every recorded field, stated once. Omitted rows mean "not recorded", not "not shown". */
@@ -145,21 +147,13 @@
 		}));
 	});
 
-	let copied = $state(false);
-	let copyTimer: ReturnType<typeof setTimeout> | undefined;
-
-	async function copyPermalink() {
-		if (!permalink) return;
-		const absolute = new URL(permalink, window.location.origin).toString();
-		try {
-			await navigator.clipboard.writeText(absolute);
-			copied = true;
-			clearTimeout(copyTimer);
-			copyTimer = setTimeout(() => (copied = false), 2000);
-		} catch (error) {
-			console.error('[TaxonScheda] Could not copy the permalink:', error);
-		}
-	}
+	// A shared link has to carry the origin. Rendered server-side there is no origin to resolve
+	// against, so the relative path stands in until the client re-derives it.
+	const absolutePermalink = $derived(
+		permalink && typeof window !== 'undefined'
+			? new URL(permalink, window.location.origin).toString()
+			: (permalink ?? '')
+	);
 </script>
 
 {#snippet distributionPane()}
@@ -385,19 +379,7 @@
 					</a>
 				{/if}
 				{#if permalink}
-					<button
-						type="button"
-						class="inline-flex items-center gap-1.5 text-xs text-surface-600-400 hover:text-surface-950-50"
-						onclick={copyPermalink}
-					>
-						{#if copied}
-							<Check class="size-3.5" aria-hidden="true" />
-							<span>Link copied</span>
-						{:else}
-							<Link2 class="size-3.5" aria-hidden="true" />
-							<span>Copy link</span>
-						{/if}
-					</button>
+					<CopyButton value={absolutePermalink} label="Copy link" copiedLabel="Link copied" />
 				{/if}
 			</div>
 		{/if}

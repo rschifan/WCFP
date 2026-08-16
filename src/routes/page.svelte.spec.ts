@@ -3,9 +3,20 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import Page from './+page.svelte';
 
+/**
+ * The hero quotes the checklist's headline figures, which now come from the server load rather than
+ * from literals in the markup. Only the fields the hero reads are stubbed.
+ */
+const SUMMARY = {
+	taxa: 26622,
+	species: 26419,
+	genera: 5009,
+	families: 412
+};
+
 describe('/+page.svelte', () => {
 	it('renders the landing page hero and entry points', async () => {
-		render(Page);
+		render(Page, { data: { summary: SUMMARY } as never });
 
 		const heading = page.getByRole('heading', {
 			level: 1,
@@ -20,5 +31,6 @@ describe('/+page.svelte', () => {
 		await expect
 			.element(page.getByRole('link', { name: 'Start with Taxonomy' }))
 			.toBeInTheDocument();
+		await expect.element(page.getByText('26,622 taxa (26,419 species)')).toBeInTheDocument();
 	});
 });

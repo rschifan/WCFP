@@ -56,6 +56,21 @@ body {
 	color: #fff;
 }
 
+/*
+ * The one filled action on a page. Skeleton's `preset-filled-primary-*` renders the cerberus
+ * primary, which is blue and has nothing to do with this portal's palette — the accent is red and
+ * every other emphasis on the site follows it.
+ */
+.app-accent-button {
+	background-color: var(--app-color-accent, #b91c1c);
+	color: #fff;
+	transition: background-color 150ms ease;
+}
+
+.app-accent-button:hover {
+	background-color: var(--app-color-accent-hover, #991b1b);
+}
+
 .app-accent-surface-hover:hover {
 	background-color: var(--app-color-accent-soft);
 }

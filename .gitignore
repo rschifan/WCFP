@@ -79,6 +79,9 @@ vite.config.ts.timestamp-*
 # Kept on disk, out of this public repository.
 docs/
 
+# The submitted manuscript, kept alongside the code for reference while the paper is in revision.
+references/
+
 # Local agent instructions and tooling — never committed.
 CLAUDE.md
 .claude/

@@ -236,8 +236,13 @@
 							{formatCount(summary.orders)} orders, {formatCount(summary.classes)} classes and
 							{formatCount(summary.phyla)} phyla. Counts on this portal are taxa unless stated otherwise.
 						</p>
+						<!--
+							Two independent GRIN flags, so these do not partition the checklist: a taxon can
+							be cultivated, an edible crop wild relative, both, or neither.
+						-->
 						<p class="mt-3 text-sm text-surface-700-300">
-							{formatCount(summary.cwr)} of them are edible crop wild relatives.
+							{formatCount(summary.cultivated)} are cultivated taxa and {formatCount(summary.cwr)}
+							are edible crop wild relatives; a taxon may be either, both or neither.
 						</p>
 					</div>
 

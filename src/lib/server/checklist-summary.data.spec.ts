@@ -11,6 +11,9 @@ import { getChecklistSummary } from './queries';
  * (ll. 292-300, 423). The portal once displayed 26,632 taxa against a corrected 26,622 and nothing
  * caught it, because the numbers were literals in the markup agreeing only with each other. Asserting
  * against the paper means a data refresh that moves a published figure fails here first.
+ *
+ * `cultivated` and `cwr` are separate GRIN flags and overlap by design — the paper reports 204 taxa
+ * carrying both — so the two are asserted independently rather than as parts of a whole.
  */
 const PAPER = {
 	taxa: 26622,
@@ -23,6 +26,7 @@ const PAPER = {
 	classes: 17,
 	phyla: 5,
 	cwr: 1825,
+	cultivated: 892,
 	areas: 367,
 	distributionRecords: 376373,
 	occurrenceRecords: { native: 277848, introduced: 97799, extinct: 277, doubtful: 449 }

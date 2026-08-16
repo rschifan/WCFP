@@ -266,6 +266,11 @@ export interface ChecklistSummary {
 	phyla: number;
 	/** Edible crop wild relatives. */
 	cwr: number;
+	/**
+	 * Cultivated taxa. Independent of `cwr` — the two GRIN fields are separate, so a taxon may be
+	 * either, both or neither, and the counts deliberately do not sum to the total.
+	 */
+	cultivated: number;
 	/** TDWG Level 3 areas the checklist covers. */
 	areas: number;
 	/** Taxa carrying at least one distribution record. */
@@ -311,6 +316,7 @@ export async function getChecklistSummary(conn: Connection): Promise<ChecklistSu
 		classes: number;
 		phyla: number;
 		cwr: number;
+		cultivated: number;
 		use_human_food: number;
 		use_animal_food: number;
 		use_environmental: number;
@@ -333,6 +339,7 @@ export async function getChecklistSummary(conn: Connection): Promise<ChecklistSu
 			COUNT(DISTINCT class)                                AS classes,
 			COUNT(DISTINCT phylum)                               AS phyla,
 			COUNT(*) FILTER (WHERE cwr)                          AS cwr,
+			COUNT(*) FILTER (WHERE cultivated)                   AS cultivated,
 			COUNT(*) FILTER (WHERE use_human_food)               AS use_human_food,
 			COUNT(*) FILTER (WHERE use_animal_food)              AS use_animal_food,
 			COUNT(*) FILTER (WHERE use_environmental)            AS use_environmental,
@@ -385,6 +392,7 @@ export async function getChecklistSummary(conn: Connection): Promise<ChecklistSu
 		classes: totals.classes,
 		phyla: totals.phyla,
 		cwr: totals.cwr,
+		cultivated: totals.cultivated,
 		areas: coverage.areas,
 		taxaWithDistribution: coverage.taxa_with_distribution,
 		distributionRecords: coverage.distribution_records,

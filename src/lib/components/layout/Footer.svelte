@@ -25,7 +25,7 @@
 	] as const;
 </script>
 
-<footer class="border-t border-slate-200 bg-slate-50">
+<footer class="border-t border-slate-200 bg-slate-100">
 	<div class="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 px-6 py-5">
 		<span class="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
 			Partners

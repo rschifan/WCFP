@@ -61,13 +61,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Dispatch inputs reach the shell through env, never through `${{ }}` interpolation:
+      # expanded into the script source, a crafted value would run on the runner.
       - name: Confirm intent
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+          KEEP: ${{ inputs.keep_releases }}
         run: |
           set -euo pipefail
-          if [ "${{ inputs.confirm }}" != "deploy" ]; then
+          if [ "$CONFIRM" != "deploy" ]; then
             echo "::error::Refusing to deploy: type 'deploy' in the confirm input to proceed."
             exit 1
           fi
+          case "$KEEP" in
+            ''|*[!0-9]*) echo "::error::keep_releases must be a whole number, got: $KEEP"; exit 1 ;;
+          esac
+          [ "$KEEP" -ge 1 ] || { echo "::error::keep_releases must be at least 1"; exit 1; }
 
       - name: Check required secrets
         env:
@@ -76,10 +85,11 @@ jobs:
           SSH_APP_PATH: ${{ secrets.SSH_APP_PATH }}
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           missing=0
-          for name in SSH_HOST SSH_USERNAME SSH_APP_PATH SSH_PRIVATE_KEY HEALTHCHECK_URL; do
+          for name in SSH_HOST SSH_USERNAME SSH_APP_PATH SSH_PRIVATE_KEY HEALTHCHECK_URL SSH_KNOWN_HOSTS; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Missing required secret: $name"
               missing=1
@@ -141,6 +151,8 @@ jobs:
             || { echo "::error::build/index.js missing — is the adapter still adapter-node?"; exit 1; }
 
       - name: Setup SSH key
+        env:
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
@@ -149,8 +161,11 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           head -1 ~/.ssh/deploy_key | grep -q "BEGIN.*PRIVATE KEY" \
             || { echo "::error::SSH key is not a private key in PEM form"; exit 1; }
-          ssh-keyscan -H -p "${{ secrets.SSH_PORT || 22 }}" "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+          # Pinned, not discovered: ssh-keyscan authenticates nothing, so a network attacker
+          # could answer with their own key and receive the release upload.
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts || { echo "::error::SSH_KNOWN_HOSTS is empty"; exit 1; }
 
       - name: Prepare release directory on the host
         env:
@@ -206,8 +221,21 @@ jobs:
           ln -sfn "releases/$RELEASE_ID" "$APP_PATH/.current.tmp"
           mv -Tf "$APP_PATH/.current.tmp" "$APP_PATH/current"
 
-          sudo systemctl restart "$SERVICE"
-          sudo systemctl is-active --quiet "$SERVICE"
+          # Roll back here too: a failed restart ends this step, so the health-check step's
+          # rollback would never run and `current` would be left on the broken release.
+          rollback() {
+            [ -n "$previous" ] || { echo "No previous release to restore."; return; }
+            ln -sfn "$previous" "$APP_PATH/.current.tmp"
+            mv -Tf "$APP_PATH/.current.tmp" "$APP_PATH/current"
+            sudo systemctl restart "$SERVICE" || true
+            echo "Rolled back to $previous"
+          }
+
+          if ! sudo systemctl restart "$SERVICE" || ! sudo systemctl is-active --quiet "$SERVICE"; then
+            echo "Service did not come up on $RELEASE_ID."
+            rollback
+            exit 1
+          fi
           echo "Activated $RELEASE_ID"
           REMOTE
 
@@ -261,10 +289,17 @@ jobs:
           live="$(basename "$(readlink "$APP_PATH/current")")"
           # Release ids sort chronologically, so the newest KEEP are simply the last KEEP.
           # The live release is never a candidate, whatever its age.
-          ls -1 | grep -v "^${live}$" | sort | head -n "-${KEEP}" | while read -r old; do
-            echo "Removing old release: $old"
-            rm -rf -- "$old"
-          done
+          # `|| true` on the filter: with only the live release present grep matches nothing and
+          # exits 1, which under pipefail failed the job after a perfectly good deploy.
+          candidates="$(ls -1 | { grep -v "^${live}$" || true; } | sort | head -n "-${KEEP}")"
+          if [ -z "$candidates" ]; then
+            echo "Nothing to prune."
+          else
+            printf '%s\n' "$candidates" | while read -r old; do
+              echo "Removing old release: $old"
+              rm -rf -- "$old"
+            done
+          fi
           REMOTE
 
       - name: Cleanup SSH key

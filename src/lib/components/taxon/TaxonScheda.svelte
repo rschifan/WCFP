@@ -185,6 +185,14 @@
 				This taxon has no areas in the checklist's distribution table.
 			</p>
 		</div>
+	{:else if distribution.status === 'success' && !geoJSON}
+		<!-- Data arrived but the shared region geometry has not. Saying so beats a blank pane. -->
+		<div class="flex h-full min-h-[30dvh] flex-col items-center justify-center gap-2 text-center">
+			<p class="font-medium">Map unavailable</p>
+			<p class="text-sm text-surface-600-400">
+				The distribution loaded, but the region geometry did not. Reloading usually fixes it.
+			</p>
+		</div>
 	{:else if distribution.status === 'success' && geoJSON}
 		{@const data = distribution.distribution}
 		{#if occurrenceStats.length > 0}

@@ -122,10 +122,14 @@
 			const code = getRegionCode(props);
 			const count = code ? (distributionData.get(code) ?? null) : null;
 			const status = code ? (occurrenceData?.get(code) ?? null) : null;
-			const hasData = count !== null && count > 0;
+			// Whichever map is being drawn decides what "has data" means. In categorical mode the
+			// status is the record; keying off the count would give a status-only area a
+			// categorical fill while excluding it from the fit and stroking it as no-data.
+			const hasData = isCategorical ? status !== null : count !== null && count > 0;
 
 			if (hasData) {
-				counts.push(count);
+				// Counts only mean something on the graduated map; a species' values are all 1.
+				if (!isCategorical && count !== null) counts.push(count);
 				if (feature.geometry) highlighted.push(feature);
 			}
 

@@ -336,7 +336,7 @@
 				</div>
 
 				<div
-					class="mt-8 grid auto-rows-fr grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-x-6 gap-y-8"
+					class="mt-8 grid grid-cols-1 gap-x-6 gap-y-5 sm:auto-rows-fr sm:grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] sm:gap-y-8"
 					role="list"
 					aria-label="List of contributors"
 				>

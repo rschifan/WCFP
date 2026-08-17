@@ -22,14 +22,19 @@ export const WCFP_DATASET = {
 	archive: 'data-and-code.zip',
 	archiveSize: '176 MB',
 	/**
-	 * figshare's own suggested citation, verbatim from `api.figshare.com/v2/articles/31441615`.
+	 * figshare's own suggested citation from `api.figshare.com/v2/articles/31441615`, with two author
+	 * names corrected: figshare has "Gorah, Sarah" for Sarah L. Gora, and "Khoury, Colin" without the
+	 * middle initial the paper prints. Both come from the depositors' figshare profiles and are being
+	 * fixed there; until they are, this string is the one place a reader would copy the misspelling
+	 * from, so it is not left verbatim.
 	 *
-	 * Copied rather than composed: the repository decides how its deposits are cited, including the
-	 * six-author cut and the trailing "et al.", and a citation we write ourselves is one more string
-	 * that can drift from the record it points at.
+	 * Everything else stays as figshare composed it — the six-author cut, the trailing "et al.", the
+	 * punctuation — because the repository decides how its deposits are cited, and a citation we
+	 * write ourselves is one more string that can drift from the record it points at. Once the
+	 * profiles are updated, re-copy from the API and drop this note.
 	 */
 	citation:
-		'Diazgranados, Mauricio; Gianella, Maraeva; Kor, Laura; Gori, Benedetta; Khoury, Colin; Gorah, Sarah; et al. (2026). World Checklist of Food Plants 2026 (WCFP): Data. figshare. Dataset. https://doi.org/10.6084/m9.figshare.31441615.v2'
+		'Diazgranados, Mauricio; Gianella, Maraeva; Kor, Laura; Gori, Benedetta; Khoury, Colin K.; Gora, Sarah L.; et al. (2026). World Checklist of Food Plants 2026 (WCFP): Data. figshare. Dataset. https://doi.org/10.6084/m9.figshare.31441615.v2'
 } as const;
 
 // The manuscript DOI is assigned on acceptance. Add it here and render it beside the dataset once

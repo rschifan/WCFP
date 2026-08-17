@@ -336,12 +336,12 @@
 				</div>
 
 				<div
-					class="mt-8 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+					class="mt-8 grid auto-rows-fr grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-x-6 gap-y-8"
 					role="list"
 					aria-label="List of contributors"
 				>
 					{#each contributors as contributor (contributor.name)}
-						<div role="listitem" class="flex">
+						<div role="listitem">
 							<ContributorCard {contributor} />
 						</div>
 					{/each}

@@ -36,11 +36,11 @@
 		<img
 			src={photoSrc}
 			alt={contributor.name}
-			class="h-20 w-20 shrink-0 rounded-full object-cover ring-1 ring-surface-200-800"
+			class="h-28 w-28 shrink-0 rounded-full object-cover ring-1 ring-surface-200-800"
 		/>
 	{:else}
 		<div
-			class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface-900 text-xl font-semibold text-white ring-1 ring-surface-200-800"
+			class="flex h-28 w-28 shrink-0 items-center justify-center rounded-full bg-surface-900 text-2xl font-semibold text-white ring-1 ring-surface-200-800"
 			aria-label="Avatar for {contributor.name}"
 		>
 			{initials}
@@ -56,12 +56,12 @@
 				rel="external noopener noreferrer"
 				class="block"
 			>
-				<h3 class="app-accent-text app-accent-text-hover text-base font-semibold transition-colors">
+				<h3 class="app-accent-text app-accent-text-hover text-lg font-semibold transition-colors">
 					{contributor.name}
 				</h3>
 			</a>
 		{:else}
-			<h3 class="text-base font-semibold text-surface-950-50">{contributor.name}</h3>
+			<h3 class="text-lg font-semibold text-surface-950-50">{contributor.name}</h3>
 		{/if}
 	</div>
 
